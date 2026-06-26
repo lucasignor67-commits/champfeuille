@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="fr" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>CHAMP — Contrats</title>
+  <link rel="icon" type="image/png" href="pant.png">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+          colors: {
+            brand: { DEFAULT: '#22c55e', dim: 'rgba(34,197,94,0.1)', ring: 'rgba(34,197,94,0.2)' }
+          },
+          keyframes: {
+            fadeUp:  { from: { opacity:'0', transform:'translateY(8px)' }, to: { opacity:'1', transform:'translateY(0)' } },
+            pop:     { from: { opacity:'0', transform:'scale(0.8)' },      to: { opacity:'1', transform:'scale(1)' } },
+            pulse2:  { '0%,100%': { opacity:'1' }, '50%': { opacity:'0.4' } },
+          },
+          animation: {
+            fadeUp: 'fadeUp .2s ease both',
+            pop:    'pop .3s cubic-bezier(0.34,1.56,0.64,1) both',
+            pulse2: 'pulse2 2s ease infinite',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; }
+    body { font-family: 'Inter', system-ui, sans-serif; touch-action: manipulation; }
+    .screen {
+      display: none; position: fixed; inset: 0; z-index: 20;
+      flex-direction: column; align-items: center; justify-content: flex-start;
+      padding: max(1.25rem, env(safe-area-inset-top)) 1.25rem max(1.25rem, env(safe-area-inset-bottom));
+      background: #080808;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .screen.active { display: flex; }
+    /* centre le contenu quand il tient, colle en haut sinon (scroll) */
+    .screen::before, .screen::after { content: ''; flex: 1; }
+    input, button, a { -webkit-tap-highlight-color: transparent; }
+    input { font-size: 16px; } /* évite le zoom auto iOS */
+    input:-webkit-autofill { -webkit-box-shadow: 0 0 0 40px #0f0f0f inset !important; -webkit-text-fill-color: #ededed !important; }
+
+  </style>
+</head>
+<body class="min-h-dvh bg-[#080808] text-[#ededed] flex items-center justify-center p-5 antialiased">
+
+  <audio id="bg-audio" src="Cayo%20Domine%20(1).mp3" loop></audio>
+
+  <!-- ── ACCUEIL ── -->
+  <div id="screen-home" class="screen active">
+  <div class="flex flex-col items-center gap-3 w-full max-w-sm">
+
+  <!-- Lecteur audio -->
+  <div class="w-full rounded-xl border border-neutral-800 bg-neutral-900 px-4 py-3 flex flex-col gap-2">
+    <!-- Titre + play/pause -->
+    <div class="flex items-center gap-3">
+      <button id="btn-play" onclick="toggleAudio()"
+        class="w-8 h-8 rounded-full bg-emerald-500 hover:bg-emerald-400 flex items-center justify-center shrink-0 transition-all duration-150 active:scale-95">
+        <i id="play-icon" data-lucide="play" class="w-3.5 h-3.5 text-black"></i>
+      </button>
+      <div class="flex flex-col min-w-0">
+        <span class="text-xs font-semibold text-neutral-200 truncate">Cayo Domine</span>
+        <span class="text-[10px] text-neutral-600">Champ de Feuille Milice</span>
+      </div>
+      <div class="ml-auto flex items-center gap-1 shrink-0">
+        <span id="audio-current" class="text-[10px] text-neutral-500 tabular-nums">0:00</span>
+        <span class="text-[10px] text-neutral-700">/</span>
+        <span id="audio-total" class="text-[10px] text-neutral-600 tabular-nums">0:00</span>
+      </div>
+    </div>
+    <!-- Barre de progression -->
+    <div class="relative py-3 -my-1 cursor-pointer" id="seek-bar" onclick="seekAudio(event)" ontouchstart="seekAudio(event)" ontouchmove="seekAudio(event)">
+      <div class="h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+        <div id="seek-fill" class="h-full bg-emerald-500 rounded-full transition-none" style="width:0%"></div>
+      </div>
+      <div id="seek-thumb" class="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-emerald-400 -translate-x-1/2 pointer-events-none" style="left:0%"></div>
+    </div>
+    <!-- Volume -->
+    <div class="flex items-center gap-2">
+      <button onclick="toggleMute()" class="p-1 -m-1 text-neutral-500 hover:text-neutral-300 transition-colors">
+        <i id="vol-icon" data-lucide="volume-2" class="w-4 h-4"></i>
+      </button>
+      <div class="relative flex-1 py-3 -my-1 cursor-pointer" id="vol-bar" onclick="setVolume(event)" ontouchstart="setVolume(event)" ontouchmove="setVolume(event)">
+        <div class="h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+          <div id="vol-fill" class="h-full bg-neutral-500 rounded-full transition-none" style="width:100%"></div>
+        </div>
+        <div id="vol-thumb" class="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-neutral-400 -translate-x-1/2 pointer-events-none" style="left:100%"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="w-full rounded-2xl border border-neutral-800 bg-neutral-900 p-6 flex flex-col items-center gap-5 animate-fadeUp" style="box-shadow:0 0 60px rgba(0,0,0,.6)">
+
+    <!-- Icône + titre -->
+    <div class="flex flex-col items-center gap-3">
+      <img src="pant.png" alt="Champ" class="w-20 h-20 object-contain select-none" style="filter:invert(1)" draggable="false" />
+      <div class="text-center">
+        <h1 class="text-xl font-black tracking-[.08em] uppercase text-neutral-100">Contrats Champ de Feuille Milice</h1>
+        <p class="text-sm text-neutral-500 mt-1">Enregistrement de contrat</p>
+      </div>
+    </div>
+
+    <!-- Bouton -->
+    <div class="w-full flex flex-col gap-3">
+      <button onclick="startContract()"
+        class="w-full flex items-center justify-center gap-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-black text-sm py-4 px-4 transition-all duration-150 active:scale-[.97]"
+        style="letter-spacing:.08em">
+        <i data-lucide="file-plus" class="w-4 h-4"></i>
+        NOUVEAU CONTRAT
+      </button>
+      <button onclick="loadContrats()"
+        class="w-full flex items-center justify-center gap-2 rounded-xl border border-neutral-800 hover:border-emerald-500/30 hover:bg-emerald-500/5 text-neutral-500 hover:text-emerald-400 text-xs font-medium py-2.5 px-3.5 transition-all duration-150">
+        <i data-lucide="activity" class="w-3.5 h-3.5 shrink-0"></i>
+        <span>Contrats en cours</span>
+      </button>
+      <p class="text-center text-[11px] text-neutral-700 font-medium select-none">Créé par 06 (si bda contacter 69 02 ou 06)</p>
+    </div>
+
+  </div>
+  </div><!-- /wrapper -->
+  </div><!-- /#screen-home -->
+
+  <!-- ── CONTRATS EN COURS ── -->
+  <div id="screen-contrats" class="screen">
+    <div class="w-full max-w-sm flex flex-col gap-3 animate-fadeUp">
+
+      <!-- Nav -->
+      <div class="flex items-center justify-between">
+        <button onclick="goTo('screen-home')"
+          class="flex items-center gap-1.5 text-neutral-500 hover:text-neutral-200 text-xs font-medium transition-colors">
+          <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i>
+          Retour
+        </button>
+        <button onclick="refreshContrats()"
+          class="flex items-center gap-1.5 text-neutral-600 hover:text-neutral-300 text-xs font-medium transition-colors">
+          <i data-lucide="refresh-cw" class="w-3 h-3"></i>
+          Actualiser
+        </button>
+      </div>
+
+      <!-- Onglets -->
+      <div class="flex rounded-xl bg-neutral-900 border border-neutral-800 p-1 gap-1">
+        <button id="tab-encours" onclick="switchTab('encours')"
+          class="flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition-all duration-150 bg-neutral-800 text-neutral-100">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+          En cours
+        </button>
+        <button id="tab-termines" onclick="switchTab('termines')"
+          class="flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition-all duration-150 text-neutral-500 hover:text-neutral-300">
+          <i data-lucide="clock" class="w-3 h-3"></i>
+          5 derniers
+        </button>
+      </div>
+
+      <!-- Liste -->
+      <div class="rounded-2xl border border-neutral-800 bg-neutral-900 overflow-hidden">
+        <div id="contrats-list" class="divide-y divide-neutral-800/60 overflow-y-auto max-h-[55vh]" style="-webkit-overflow-scrolling:touch">
+          <p class="text-xs text-neutral-600 text-center py-6">Chargement…</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── IDENTITÉ ── -->
+  <div id="screen-identite" class="screen">
+    <div class="w-full max-w-sm rounded-2xl border border-neutral-800 bg-neutral-900 p-6 flex flex-col gap-5 animate-fadeUp">
+
+      <!-- Nav -->
+      <div class="flex items-center justify-between">
+        <button onclick="goTo('screen-home')"
+          class="flex items-center gap-1.5 text-neutral-500 hover:text-neutral-200 text-xs font-medium transition-colors">
+          <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i>
+          Retour
+        </button>
+        <span class="text-xs text-neutral-600 font-medium">Étape 1 / 3</span>
+      </div>
+
+      <!-- Progress -->
+      <div class="h-0.5 bg-neutral-800 rounded-full overflow-hidden">
+        <div class="h-full bg-emerald-500 rounded-full w-1/3 transition-all duration-300"></div>
+      </div>
+
+      <div>
+        <h2 class="text-base font-semibold tracking-tight">Identité du client</h2>
+        <p class="text-xs text-neutral-500 mt-0.5">Prénom et nom de famille</p>
+      </div>
+
+      <!-- Champs -->
+      <div class="grid grid-cols-2 gap-3">
+        <div class="flex flex-col gap-1.5">
+          <label for="nom-input" class="text-[11px] font-semibold text-neutral-400 uppercase tracking-wide">Nom</label>
+          <input id="nom-input" type="text" placeholder="Lorus"
+            autocomplete="family-name" autocapitalize="words"
+            class="w-full rounded-lg bg-[#0f0f0f] border border-neutral-800 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 text-sm text-neutral-100 placeholder:text-neutral-700 px-3 py-2.5 outline-none transition-all font-medium" />
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label for="prenom-input" class="text-[11px] font-semibold text-neutral-400 uppercase tracking-wide">Prénom</label>
+          <input id="prenom-input" type="text" placeholder="Daniel"
+            autocomplete="given-name" autocapitalize="words"
+            class="w-full rounded-lg bg-[#0f0f0f] border border-neutral-800 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 text-sm text-neutral-100 placeholder:text-neutral-700 px-3 py-2.5 outline-none transition-all font-medium" />
+        </div>
+      </div>
+
+      <!-- Erreur -->
+      <div id="error-identite" class="hidden items-center gap-2 rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2.5 text-xs text-red-400">
+        <i data-lucide="circle-alert" class="w-3.5 h-3.5 shrink-0"></i>
+        <span id="error-identite-text"></span>
+      </div>
+
+      <button onclick="submitIdentite()"
+        class="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-semibold text-sm py-3 transition-all duration-150 active:scale-[.98]">
+        Continuer
+        <i data-lucide="arrow-right" class="w-4 h-4"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- ── MATRICULE ── -->
+  <div id="screen-matricule" class="screen">
+    <div class="w-full max-w-sm rounded-2xl border border-neutral-800 bg-neutral-900 p-6 flex flex-col gap-5 animate-fadeUp">
+
+      <div class="flex items-center justify-between">
+        <button onclick="goTo('screen-identite')"
+          class="flex items-center gap-1.5 text-neutral-500 hover:text-neutral-200 text-xs font-medium transition-colors">
+          <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i>
+          Retour
+        </button>
+        <span class="text-xs text-neutral-600 font-medium">Étape 2 / 3</span>
+      </div>
+
+      <div class="h-0.5 bg-neutral-800 rounded-full overflow-hidden">
+        <div class="h-full bg-emerald-500 rounded-full w-2/3 transition-all duration-300"></div>
+      </div>
+
+      <div>
+        <h2 class="text-base font-semibold tracking-tight">Matricule</h2>
+      </div>
+
+      <div class="flex flex-col gap-1.5">
+        <label for="matricule-input" class="text-[11px] font-semibold text-neutral-400 uppercase tracking-wide">Indiquer votre matricule</label>
+        <input id="matricule-input" type="text" placeholder="06"
+          autocomplete="off" autocapitalize="characters"
+          class="w-full rounded-lg bg-[#0f0f0f] border border-neutral-800 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 text-2xl font-bold text-center tracking-widest text-neutral-100 placeholder:text-neutral-700 placeholder:font-normal placeholder:tracking-normal placeholder:text-lg px-3 py-4 outline-none transition-all" />
+        <p class="text-center text-[11px] text-neutral-600">06 &nbsp;·&nbsp; 23 &nbsp;·&nbsp; R1</p>
+      </div>
+
+      <div id="error-matricule" class="hidden items-center gap-2 rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2.5 text-xs text-red-400">
+        <i data-lucide="circle-alert" class="w-3.5 h-3.5 shrink-0"></i>
+        <span id="error-matricule-text"></span>
+      </div>
+
+      <button onclick="submitMatricule()"
+        class="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-semibold text-sm py-3 transition-all duration-150 active:scale-[.98]">
+        Continuer
+        <i data-lucide="arrow-right" class="w-4 h-4"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- ── DURÉE ── -->
+  <div id="screen-duree" class="screen">
+    <div class="w-full max-w-sm rounded-2xl border border-neutral-800 bg-neutral-900 p-6 flex flex-col gap-5 animate-fadeUp">
+
+      <div class="flex items-center justify-between">
+        <button onclick="goTo('screen-matricule')"
+          class="flex items-center gap-1.5 text-neutral-500 hover:text-neutral-200 text-xs font-medium transition-colors">
+          <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i>
+          Retour
+        </button>
+        <span class="text-xs text-neutral-600 font-medium">Étape 3 / 3</span>
+      </div>
+
+      <div class="h-0.5 bg-neutral-800 rounded-full overflow-hidden">
+        <div class="h-full bg-emerald-500 rounded-full w-full transition-all duration-300"></div>
+      </div>
+
+      <div>
+        <h2 class="text-base font-semibold tracking-tight">Durée du contrat</h2>
+        <p class="text-xs text-neutral-500 mt-0.5">15 000 $ par heure</p>
+      </div>
+
+      <div class="grid grid-cols-3 gap-2">
+        <button onclick="submitDuree(1)" class="dur-btn group rounded-xl border border-neutral-800 hover:border-emerald-500/50 hover:bg-emerald-500/5 bg-[#0f0f0f] p-4 flex flex-col items-center gap-1 transition-all duration-150 active:scale-[.96]">
+          <span class="text-lg font-bold text-neutral-100 group-hover:text-emerald-400 transition-colors">1h</span>
+          <span class="text-[10px] text-neutral-600 font-medium">15 000 $</span>
+        </button>
+        <button onclick="submitDuree(2)" class="dur-btn group rounded-xl border border-neutral-800 hover:border-emerald-500/50 hover:bg-emerald-500/5 bg-[#0f0f0f] p-4 flex flex-col items-center gap-1 transition-all duration-150 active:scale-[.96]">
+          <span class="text-lg font-bold text-neutral-100 group-hover:text-emerald-400 transition-colors">2h</span>
+          <span class="text-[10px] text-neutral-600 font-medium">30 000 $</span>
+        </button>
+        <button onclick="submitDuree(3)" class="dur-btn group rounded-xl border border-neutral-800 hover:border-emerald-500/50 hover:bg-emerald-500/5 bg-[#0f0f0f] p-4 flex flex-col items-center gap-1 transition-all duration-150 active:scale-[.96]">
+          <span class="text-lg font-bold text-neutral-100 group-hover:text-emerald-400 transition-colors">3h</span>
+          <span class="text-[10px] text-neutral-600 font-medium">45 000 $</span>
+        </button>
+        <button onclick="submitDuree(4)" class="dur-btn group rounded-xl border border-neutral-800 hover:border-emerald-500/50 hover:bg-emerald-500/5 bg-[#0f0f0f] p-4 flex flex-col items-center gap-1 transition-all duration-150 active:scale-[.96]">
+          <span class="text-lg font-bold text-neutral-100 group-hover:text-emerald-400 transition-colors">4h</span>
+          <span class="text-[10px] text-neutral-600 font-medium">60 000 $</span>
+        </button>
+        <button onclick="submitDuree(5)" class="dur-btn group rounded-xl border border-neutral-800 hover:border-emerald-500/50 hover:bg-emerald-500/5 bg-[#0f0f0f] p-4 flex flex-col items-center gap-1 transition-all duration-150 active:scale-[.96]">
+          <span class="text-lg font-bold text-neutral-100 group-hover:text-emerald-400 transition-colors">5h</span>
+          <span class="text-[10px] text-neutral-600 font-medium">75 000 $</span>
+        </button>
+        <button onclick="submitDuree(6)" class="dur-btn group rounded-xl border border-neutral-800 hover:border-emerald-500/50 hover:bg-emerald-500/5 bg-[#0f0f0f] p-4 flex flex-col items-center gap-1 transition-all duration-150 active:scale-[.96]">
+          <span class="text-lg font-bold text-neutral-100 group-hover:text-emerald-400 transition-colors">6h</span>
+          <span class="text-[10px] text-neutral-600 font-medium">90 000 $</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SUCCÈS ── -->
+  <div id="screen-success" class="screen">
+    <div class="w-full max-w-sm rounded-2xl border border-neutral-800 bg-neutral-900 p-6 flex flex-col gap-5 animate-fadeUp">
+
+      <!-- Icône -->
+      <div class="flex flex-col items-center gap-3 py-2">
+        <div class="w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center animate-pop">
+          <i data-lucide="check" class="w-5 h-5 text-emerald-400"></i>
+        </div>
+        <div class="text-center">
+          <p class="text-sm font-semibold">Contrat enregistré</p>
+          <p class="text-xs text-neutral-500 mt-0.5">Ajouté au tableau avec succès</p>
+        </div>
+      </div>
+
+      <!-- Reçu -->
+      <div id="success-details" class="rounded-xl border border-neutral-800 bg-[#0f0f0f] overflow-hidden text-sm divide-y divide-neutral-800"></div>
+
+      <button onclick="restart()"
+        class="w-full flex items-center justify-center gap-2 rounded-xl border border-neutral-800 hover:border-neutral-700 hover:bg-neutral-800/50 text-neutral-400 hover:text-neutral-200 font-medium text-sm py-3 transition-all duration-150 active:scale-[.98]">
+        <i data-lucide="plus" class="w-4 h-4"></i>
+        Nouveau contrat
+      </button>
+    </div>
+  </div>
+
+  <!-- ── SPINNER ── -->
+  <div id="spinner" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+    <div class="flex flex-col items-center gap-3">
+      <div class="w-8 h-8 rounded-full border-2 border-neutral-800 border-t-emerald-500 animate-spin"></div>
+      <span class="text-xs text-neutral-500">Enregistrement…</span>
+    </div>
+  </div>
+
+  <script>
+    function initIcons() { if (window.lucide) lucide.createIcons(); }
+    document.addEventListener('DOMContentLoaded', initIcons);
+
+    const audio = document.getElementById('bg-audio');
+    audio.volume = 1.0;
+
+    function fmtTime(s) {
+      if (isNaN(s)) return '0:00';
+      const m  = Math.floor(s / 60);
+      const ss = String(Math.floor(s % 60)).padStart(2, '0');
+      return m + ':' + ss;
+    }
+
+    function jsonp(url) {
+      return new Promise((resolve, reject) => {
+        const cb  = 'cb_' + Date.now();
+        const s   = document.createElement('script');
+        const tid = setTimeout(() => { cleanup(); reject(new Error('Timeout')); }, 10000);
+        function cleanup() { clearTimeout(tid); delete window[cb]; if (s.parentNode) s.remove(); }
+        window[cb] = (data) => { cleanup(); resolve(data); };
+        s.onerror  = () => { cleanup(); reject(new Error('Script error')); };
+        s.src = url + '&callback=' + cb;
+        document.head.appendChild(s);
+      });
+    }
+
+    let currentTab = 'encours';
+
+    function switchTab(tab) {
+      currentTab = tab;
+      const onEl  = document.getElementById('tab-encours');
+      const offEl = document.getElementById('tab-termines');
+      const active   = 'bg-neutral-800 text-neutral-100';
+      const inactive = 'text-neutral-500 hover:text-neutral-300';
+      if (tab === 'encours') {
+        onEl.className  = onEl.className.replace(inactive, active);
+        offEl.className = offEl.className.replace(active, inactive);
+      } else {
+        offEl.className = offEl.className.replace(inactive, active);
+        onEl.className  = onEl.className.replace(active, inactive);
+      }
+      fetchContrats(tab);
+    }
+
+    function refreshContrats() { fetchContrats(currentTab); }
+
+    async function loadContrats() {
+      currentTab = 'encours';
+      showScreen('screen-contrats');
+      // reset tabs visuellement
+      document.getElementById('tab-encours').className  = document.getElementById('tab-encours').className.replace('text-neutral-500 hover:text-neutral-300','bg-neutral-800 text-neutral-100');
+      document.getElementById('tab-termines').className = document.getElementById('tab-termines').className.replace('bg-neutral-800 text-neutral-100','text-neutral-500 hover:text-neutral-300');
+      fetchContrats('encours');
+    }
+
+    async function fetchContrats(tab) {
+      const list   = document.getElementById('contrats-list');
+      const action = tab === 'encours' ? 'get_contrats' : 'get_termines';
+      list.innerHTML = '<p class="text-xs text-neutral-600 text-center py-6">Chargement…</p>';
+
+      try {
+        const data = await jsonp(APPS_SCRIPT_URL + '?action=' + action);
+
+        if (!data.success || !data.contrats || data.contrats.length === 0) {
+          const msg = tab === 'encours' ? 'Aucun contrat en cours' : 'Aucun contrat terminé';
+          list.innerHTML = `<p class="text-xs text-neutral-600 text-center py-6">${msg}</p>`;
+          return;
+        }
+
+        const now    = new Date();
+        const nowMin = now.getHours() * 60 + now.getMinutes();
+
+        list.innerHTML = data.contrats.map(c => {
+          const prix = Number(c.prix).toLocaleString('fr-FR') + ' $';
+
+          if (tab === 'termines') {
+            return `<div class="px-4 py-3 flex flex-col gap-1">
+              <div class="flex items-center justify-between">
+                <span class="text-sm font-bold text-neutral-100">${c.prenom} ${c.nom}</span>
+                <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-neutral-800 text-neutral-400 border border-neutral-700">TERMINÉ</span>
+              </div>
+              <div class="flex items-center gap-3 text-[11px] text-neutral-500 flex-wrap">
+                <span>Mat. <span class="text-neutral-300 font-medium">${c.matricule}</span></span>
+                <span>·</span>
+                <span>${c.heure_debut} → ${c.heure_fin}</span>
+                <span>·</span>
+                <span>${prix}</span>
+              </div>
+              <div class="text-[10px] text-neutral-600">${c.date}</div>
+            </div>`;
+          }
+
+          // En cours : temps restant
+          let restant = '';
+          const sep = String(c.heure_fin).toLowerCase().indexOf('h');
+          if (sep !== -1) {
+            const h    = parseInt(c.heure_fin.substring(0, sep)) || 0;
+            const m    = parseInt(c.heure_fin.substring(sep + 1)) || 0;
+            const finM = h * 60 + m;
+            let diff   = finM - nowMin;
+            if (diff < 0) diff += 1440;
+            restant = diff > 0
+              ? (diff >= 60 ? Math.floor(diff/60) + 'h' + String(diff%60).padStart(2,'0') : diff + ' min') + ' restant'
+              : 'Terminé';
+          }
+
+          return `<div class="px-4 py-3 flex flex-col gap-1">
+            <div class="flex items-center justify-between">
+              <span class="text-sm font-bold text-neutral-100">${c.prenom} ${c.nom}</span>
+              <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">EN COURS</span>
+            </div>
+            <div class="flex items-center gap-3 text-[11px] text-neutral-500 flex-wrap">
+              <span>Mat. <span class="text-neutral-300 font-medium">${c.matricule}</span></span>
+              <span>·</span>
+              <span>${c.heure_debut} → <span class="text-neutral-300">${c.heure_fin}</span></span>
+              <span>·</span>
+              <span class="text-neutral-400">${prix}</span>
+            </div>
+            <div class="text-[10px] font-semibold ${restant === 'Terminé' ? 'text-red-400' : 'text-amber-400'}">${restant}</div>
+          </div>`;
+        }).join('');
+
+      } catch (err) {
+        list.innerHTML = '<p class="text-xs text-red-400 text-center py-6">Erreur de connexion</p>';
+        console.error('[CHAMP contrats]', err);
+      }
+    }
+
+    function toggleAudio() {
+      if (audio.paused) {
+        audio.play();
+        document.getElementById('play-icon').setAttribute('data-lucide', 'pause');
+      } else {
+        audio.pause();
+        document.getElementById('play-icon').setAttribute('data-lucide', 'play');
+      }
+      lucide.createIcons();
+    }
+
+    function getClientX(e) {
+      if (e.touches && e.touches.length)        return e.touches[0].clientX;
+      if (e.changedTouches && e.changedTouches.length) return e.changedTouches[0].clientX;
+      return e.clientX;
+    }
+
+    function seekAudio(e) {
+      e.preventDefault();
+      const bar  = document.getElementById('seek-bar');
+      const rect = bar.getBoundingClientRect();
+      const pct  = Math.max(0, Math.min(1, (getClientX(e) - rect.left) / rect.width));
+      if (audio.duration) audio.currentTime = pct * audio.duration;
+    }
+
+    audio.addEventListener('loadedmetadata', () => {
+      document.getElementById('audio-total').textContent = fmtTime(audio.duration);
+    });
+
+    audio.addEventListener('timeupdate', () => {
+      const pct = audio.duration ? (audio.currentTime / audio.duration) * 100 : 0;
+      document.getElementById('seek-fill').style.width = pct + '%';
+      document.getElementById('seek-thumb').style.left = pct + '%';
+      document.getElementById('audio-current').textContent = fmtTime(audio.currentTime);
+    });
+
+    function setVolume(e) {
+      e.preventDefault();
+      const bar  = document.getElementById('vol-bar');
+      const rect = bar.getBoundingClientRect();
+      const pct  = Math.max(0, Math.min(1, (getClientX(e) - rect.left) / rect.width));
+      audio.volume = pct;
+      audio.muted  = false;
+      updateVolUI(pct);
+    }
+
+    function toggleMute() {
+      audio.muted = !audio.muted;
+      updateVolUI(audio.muted ? 0 : audio.volume);
+    }
+
+    function updateVolUI(pct) {
+      document.getElementById('vol-fill').style.width = (pct * 100) + '%';
+      document.getElementById('vol-thumb').style.left = (pct * 100) + '%';
+      const icon = document.getElementById('vol-icon');
+      icon.setAttribute('data-lucide', pct === 0 ? 'volume-x' : pct < 0.5 ? 'volume-1' : 'volume-2');
+      lucide.createIcons();
+    }
+  </script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+.screen { display: none; }
+.screen.active { display: flex; }
+
+input:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 40px #0f0f0f inset !important;
+  -webkit-text-fill-color: #ededed !important;
+}

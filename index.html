@@ -67,17 +67,23 @@
 
   <!-- Lecteur audio -->
   <div class="w-full rounded-xl border border-neutral-800 bg-neutral-900 px-4 py-3 flex flex-col gap-2">
-    <!-- Titre + play/pause -->
-    <div class="flex items-center gap-3">
+    <!-- Titre + contrôles -->
+    <div class="flex items-center gap-2">
+      <button onclick="prevTrack()" class="p-1 -m-1 text-neutral-600 hover:text-neutral-300 transition-colors active:scale-90">
+        <i data-lucide="skip-back" class="w-3.5 h-3.5"></i>
+      </button>
       <button id="btn-play" onclick="toggleAudio()"
         class="w-8 h-8 rounded-full bg-emerald-500 hover:bg-emerald-400 flex items-center justify-center shrink-0 transition-all duration-150 active:scale-95">
         <i id="play-icon" data-lucide="play" class="w-3.5 h-3.5 text-black"></i>
       </button>
-      <div class="flex flex-col min-w-0">
-        <span class="text-xs font-semibold text-neutral-200 truncate">Cayo Domine</span>
-        <span class="text-[10px] text-neutral-600">Champ de Feuille Milice</span>
+      <button onclick="nextTrack()" class="p-1 -m-1 text-neutral-600 hover:text-neutral-300 transition-colors active:scale-90">
+        <i data-lucide="skip-forward" class="w-3.5 h-3.5"></i>
+      </button>
+      <div class="flex flex-col min-w-0 flex-1 mx-1">
+        <span id="track-title" class="text-xs font-semibold text-neutral-200 truncate">Cayo Domine</span>
+        <span id="track-sub" class="text-[10px] text-neutral-600 truncate">Champ de Feuille Milice</span>
       </div>
-      <div class="ml-auto flex items-center gap-1 shrink-0">
+      <div class="flex items-center gap-1 shrink-0">
         <span id="audio-current" class="text-[10px] text-neutral-500 tabular-nums">0:00</span>
         <span class="text-[10px] text-neutral-700">/</span>
         <span id="audio-total" class="text-[10px] text-neutral-600 tabular-nums">0:00</span>
@@ -378,6 +384,38 @@
 
     const audio = document.getElementById('bg-audio');
     audio.volume = 1.0;
+
+    // ── Playlist ────────────────────────────────────────────────
+    const playlist = [
+      { src: 'Cayo%20Domine%20(1).mp3', title: 'Cayo Domine',          sub: 'Champ de Feuille Milice' },
+      { src: 'tuyo.mp3',                title: 'Tuyo (Narcos Theme)',   sub: 'Champ de Feuille Milice' },
+      { src: 'lacucaracha.mp3',         title: 'La Cucaracha',          sub: 'Champ de Feuille Milice' },
+    ];
+    let trackIndex = 0;
+    const wasPlaying = () => !audio.paused;
+
+    function loadTrack(idx, autoplay) {
+      trackIndex = (idx + playlist.length) % playlist.length;
+      const t = playlist[trackIndex];
+      audio.src = t.src;
+      audio.load();
+      document.getElementById('track-title').textContent = t.title;
+      document.getElementById('track-sub').textContent   = t.sub;
+      document.getElementById('audio-total').textContent  = '0:00';
+      document.getElementById('audio-current').textContent = '0:00';
+      document.getElementById('seek-fill').style.width   = '0%';
+      document.getElementById('seek-thumb').style.left   = '0%';
+      if (autoplay) {
+        audio.play();
+        document.getElementById('play-icon').setAttribute('data-lucide', 'pause');
+        lucide.createIcons();
+      }
+    }
+
+    function prevTrack() { loadTrack(trackIndex - 1, wasPlaying()); }
+    function nextTrack() { loadTrack(trackIndex + 1, wasPlaying()); }
+
+    audio.addEventListener('ended', () => nextTrack());
 
     function fmtTime(s) {
       if (isNaN(s)) return '0:00';

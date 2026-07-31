@@ -181,6 +181,24 @@
         </div>
       </div>
 
+      <!-- Stats MAMIE -->
+      <div class="rounded-2xl border border-neutral-800 bg-neutral-900 overflow-hidden">
+        <div class="px-4 py-2.5 border-b border-neutral-800/60 flex items-center gap-2">
+          <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+          <span class="text-xs font-semibold text-neutral-300">Contrats MAMIE</span>
+        </div>
+        <div class="grid grid-cols-2 divide-x divide-neutral-800/60">
+          <div class="px-4 py-3 flex flex-col gap-0.5">
+            <span class="text-[10px] text-neutral-600 font-medium uppercase tracking-wide">Aujourd'hui</span>
+            <span id="mamie-today" class="text-2xl font-bold text-neutral-100">—</span>
+          </div>
+          <div class="px-4 py-3 flex flex-col gap-0.5">
+            <span class="text-[10px] text-neutral-600 font-medium uppercase tracking-wide">Cette page</span>
+            <span id="mamie-total" class="text-2xl font-bold text-neutral-100">—</span>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -460,11 +478,22 @@
       fetchContrats(tab);
     }
 
-    function refreshContrats() { fetchContrats(currentTab); }
+    function refreshContrats() { fetchContrats(currentTab); fetchMamieStats(); }
+
+    async function fetchMamieStats() {
+      try {
+        const data = await jsonp(APPS_SCRIPT_URL + '?action=get_mamie_stats');
+        if (data.success && data.stats) {
+          document.getElementById('mamie-today').textContent = data.stats.today;
+          document.getElementById('mamie-total').textContent = data.stats.total;
+        }
+      } catch(e) { console.error('[CHAMP mamie]', e); }
+    }
 
     async function loadContrats() {
       currentTab = 'encours';
       showScreen('screen-contrats');
+      fetchMamieStats();
       // reset tabs visuellement
       document.getElementById('tab-encours').className  = document.getElementById('tab-encours').className.replace('text-neutral-500 hover:text-neutral-300','bg-neutral-800 text-neutral-100');
       document.getElementById('tab-termines').className = document.getElementById('tab-termines').className.replace('bg-neutral-800 text-neutral-100','text-neutral-500 hover:text-neutral-300');

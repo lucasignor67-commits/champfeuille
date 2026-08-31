@@ -1,5 +1,5 @@
 // ── Configuration ───────────────────────────────────────────────
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzdOVpfu4UB5jR9_xfkff3rBl07qAyWLI6br4WKNSv3ENOgmM_ERa_k1dx7Z71c71gR4g/exec';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzq7_P9QTbIkLKZDXIPnDBHO-1bKutMae1pLwFHiX9vjBo5IOiS9DVrba3KTIJ3SKEJdw/exec';
 
 // ── État ─────────────────────────────────────────────────────────
 let state = { prenom: '', nom: '', matricule: '', duree: 0, laIsla: false };
@@ -71,7 +71,7 @@ function submitDuree(heures) {
 
 // ── Envoi ────────────────────────────────────────────────────────
 async function sendToSheets() {
-  const prixUnit   = state.laIsla ? 10000 : 20000;
+  const prixUnit   = state.laIsla ? 10000 : 25000;
   const now        = new Date();
   const date       = formatDate(now);
   const heureDebut = formatTime(now);
@@ -173,6 +173,8 @@ function updateDureePrices() {
   const label = document.getElementById('dur-label-prix');
   if (label) label.textContent = prixUnit.toLocaleString('fr-FR') + ' $ par heure';
 }
+
+
 
 // ── Helpers ──────────────────────────────────────────────────────
 function showError(id, msg) {

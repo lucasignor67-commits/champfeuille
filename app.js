@@ -165,7 +165,7 @@ function syncBagheraUI() {
 }
 
 function updateDureePrices() {
-  const prixUnit = state.laIsla ? 10000 : 20000;
+  const prixUnit = state.laIsla ? 10000 : 25000;
   document.querySelectorAll('[data-dur-h]').forEach(el => {
     const h = parseInt(el.dataset.durH);
     el.textContent = (h * prixUnit).toLocaleString('fr-FR') + ' $';

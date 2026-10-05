@@ -120,7 +120,7 @@ function getTerminesData() {
     });
   }
   // Les 10 derniers (fin de tableau = plus récents)
-  return contrats.slice(-5).reverse();
+  return contrats.slice(-10).reverse();
 }
 
 function getContratsData() {
@@ -296,7 +296,7 @@ function getSuivi() {
   var sheet = ss.getSheets()[0];
   var data  = sheet.getDataRange().getValues();
 
-  return PERSONNES_SUIVIES.map(function(matricule) {
+  var suivis = PERSONNES_SUIVIES.map(function(matricule) {
     var contrats = 0, heures = 0, montant = 0;
     for (var i = 1; i < data.length; i++) {
       var row = data[i];
@@ -308,6 +308,21 @@ function getSuivi() {
     }
     return { matricule: matricule, contrats: contrats, heures: heures, montant: montant };
   });
+
+  // Agrège tous les contrats des personnes hors liste
+  var tiersContrats = 0, tiersHeures = 0, tiersMontant = 0;
+  var suiviesUpper  = PERSONNES_SUIVIES.map(function(m) { return m.toUpperCase(); });
+  for (var i = 1; i < data.length; i++) {
+    var row = data[i];
+    if (!row[1] || row[1] === '') continue;
+    if (suiviesUpper.indexOf(String(row[3]).trim().toUpperCase()) !== -1) continue;
+    tiersContrats++;
+    tiersHeures  += parseInt(String(row[6]).replace(/[^0-9]/g, ''), 10) || 0;
+    tiersMontant += Number(row[7]) || 0;
+  }
+  suivis.push({ matricule: 'Personnes tiers', contrats: tiersContrats, heures: tiersHeures, montant: tiersMontant, isTiers: true });
+
+  return suivis;
 }
 
 // ---------------------------------------------------------------

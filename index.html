@@ -134,7 +134,12 @@
         <i data-lucide="activity" class="w-3.5 h-3.5 shrink-0"></i>
         <span>Contrats en cours</span>
       </button>
-      <p class="text-center text-[11px] text-neutral-700 font-medium select-none">Créé par 06 (si bda contacter 69 02 ou 06)</p>
+      <button onclick="loadSuiviProtected()"
+        class="w-full flex items-center justify-center gap-2 rounded-xl border border-neutral-800 hover:border-amber-500/30 hover:bg-amber-500/5 text-neutral-500 hover:text-amber-400 text-xs font-medium py-2.5 px-3.5 transition-all duration-150">
+        <i data-lucide="bar-chart-2" class="w-3.5 h-3.5 shrink-0"></i>
+        <span>Suivi semaine</span>
+      </button>
+      <p class="text-center text-[11px] text-neutral-700 font-medium select-none">Créé par 06 emax (si bda contacter 69 02 ou 06)</p>
     </div>
 
   </div>
@@ -202,6 +207,103 @@
     </div>
   </div>
 
+  <!-- ── VERROU SUIVI ── -->
+  <div id="screen-suivi-lock" class="screen">
+    <div class="w-full max-w-sm rounded-2xl border border-neutral-800 bg-neutral-900 p-6 flex flex-col gap-5 animate-fadeUp">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
+          <i data-lucide="lock" class="w-5 h-5 text-amber-400"></i>
+        </div>
+        <div>
+          <h2 class="text-sm font-semibold">Accès restreint</h2>
+          <p class="text-xs text-neutral-500">Suivi semaine</p>
+        </div>
+      </div>
+      <div class="flex flex-col gap-2">
+        <input id="suivi-pwd-input" type="password" placeholder="Mot de passe"
+          class="w-full rounded-lg border border-neutral-800 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 bg-[#0f0f0f] text-sm text-neutral-100 placeholder:text-neutral-700 px-4 py-3 outline-none transition-all"
+          onkeydown="if(event.key==='Enter') checkSuiviPassword()" />
+        <p id="suivi-pwd-error" class="hidden text-xs text-red-400 px-1">Mot de passe incorrect</p>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="goTo('screen-home')"
+          class="flex-1 rounded-xl border border-neutral-800 hover:border-neutral-700 text-neutral-500 text-sm font-medium py-3 transition-all active:scale-[.97]">
+          Annuler
+        </button>
+        <button onclick="checkSuiviPassword()"
+          class="flex-1 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-semibold text-sm py-3 transition-all active:scale-[.97]">
+          Accéder
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SUIVI SEMAINE ── -->
+  <div id="screen-suivi" class="screen">
+    <div class="w-full max-w-sm flex flex-col gap-3 animate-fadeUp">
+
+      <!-- Nav -->
+      <div class="flex items-center justify-between">
+        <button onclick="goTo('screen-home')"
+          class="flex items-center gap-1.5 text-neutral-500 hover:text-neutral-200 text-xs font-medium transition-colors">
+          <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i>
+          Retour
+        </button>
+        <button onclick="fetchSuivi()"
+          class="flex items-center gap-1.5 text-neutral-600 hover:text-neutral-300 text-xs font-medium transition-colors">
+          <i data-lucide="refresh-cw" class="w-3 h-3"></i>
+          Actualiser
+        </button>
+      </div>
+
+      <!-- Titre + résumé -->
+      <div>
+        <h2 class="text-base font-semibold tracking-tight">Suivi semaine</h2>
+        <p id="suivi-subtitle" class="text-xs text-neutral-500 mt-0.5">—</p>
+      </div>
+
+      <!-- Résumé total -->
+      <div id="suivi-total" class="hidden rounded-2xl border border-neutral-800 bg-neutral-900 overflow-hidden">
+        <div class="grid grid-cols-3 divide-x divide-neutral-800/60">
+          <div class="px-3 py-3 flex flex-col gap-0.5 items-center">
+            <span class="text-[10px] text-neutral-600 font-medium uppercase tracking-wide">Contrats</span>
+            <span id="total-contrats" class="text-lg font-bold text-neutral-100">—</span>
+          </div>
+          <div class="px-3 py-3 flex flex-col gap-0.5 items-center">
+            <span class="text-[10px] text-neutral-600 font-medium uppercase tracking-wide">Heures</span>
+            <span id="total-heures" class="text-lg font-bold text-neutral-100">—</span>
+          </div>
+          <div class="px-3 py-3 flex flex-col gap-0.5 items-center">
+            <span class="text-[10px] text-neutral-600 font-medium uppercase tracking-wide">Montant</span>
+            <span id="total-montant" class="text-lg font-bold text-neutral-100">—</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tri -->
+      <div class="flex gap-2">
+        <button id="sort-contrats" onclick="setSuiviSort('contrats')"
+          class="flex-1 rounded-lg border border-neutral-800 bg-[#0f0f0f] text-neutral-500 text-xs font-semibold py-2 transition-all active:scale-[.97]">
+          Contrats<span id="arrow-contrats"></span>
+        </button>
+        <button id="sort-heures" onclick="setSuiviSort('heures')"
+          class="flex-1 rounded-lg border border-neutral-800 bg-[#0f0f0f] text-neutral-500 text-xs font-semibold py-2 transition-all active:scale-[.97]">
+          Heures<span id="arrow-heures"></span>
+        </button>
+        <button id="sort-montant" onclick="setSuiviSort('montant')"
+          class="flex-1 rounded-lg border border-neutral-800 bg-[#0f0f0f] text-neutral-500 text-xs font-semibold py-2 transition-all active:scale-[.97]">
+          Montant<span id="arrow-montant"></span>
+        </button>
+      </div>
+
+      <!-- Cartes -->
+      <div id="suivi-list" class="flex flex-col gap-2">
+        <p class="text-xs text-neutral-600 text-center py-6">Chargement…</p>
+      </div>
+
+    </div>
+  </div>
+
   <!-- ── IDENTITÉ ── -->
   <div id="screen-identite" class="screen">
     <div class="w-full max-w-sm rounded-2xl border border-neutral-800 bg-neutral-900 p-6 flex flex-col gap-5 animate-fadeUp">
@@ -242,18 +344,35 @@
         </div>
       </div>
 
-      <!-- Tarif La Isla Baghera -->
-      <div class="flex items-center justify-between rounded-xl border border-neutral-800 bg-[#0f0f0f] px-3.5 py-2.5">
-        <div class="flex flex-col gap-0.5">
-          <span class="text-xs font-semibold text-neutral-300">La Isla Baghera <span class="font-normal text-neutral-500">(et crew affiliés)</span></span>
-          <span class="text-[10px] text-neutral-600">Tarif réduit — 10 000 $ / heure</span>
+      <!-- Tarif spécial -->
+      <div class="flex flex-col gap-2">
+        <span class="text-[10px] text-neutral-600 font-medium uppercase tracking-wide px-0.5">Tarif spécial</span>
+        <div class="grid grid-cols-2 gap-2">
+          <button id="tarif-isla" onclick="setTarif('isla')" type="button"
+            class="rounded-xl border border-neutral-800 bg-[#0f0f0f] px-3 py-2.5 flex flex-col gap-0.5 text-left transition-all duration-150 active:scale-[.97]">
+            <span class="text-xs font-semibold text-neutral-300 leading-tight">La Isla Baghera</span>
+            <span class="text-[10px] text-neutral-500 leading-tight">et crew affiliés</span>
+            <span class="text-[10px] text-emerald-400 font-bold mt-0.5">GRATUIT</span>
+          </button>
+          <button id="tarif-gouv" onclick="setTarif('gouv')" type="button"
+            class="rounded-xl border border-neutral-800 bg-[#0f0f0f] px-3 py-2.5 flex flex-col gap-0.5 text-left transition-all duration-150 active:scale-[.97]">
+            <span class="text-xs font-semibold text-neutral-300 leading-tight">Gouv. Cayo</span>
+            <span class="text-[10px] text-neutral-500 leading-tight">gouvernement</span>
+            <span class="text-[10px] text-emerald-400 font-bold mt-0.5">GRATUIT</span>
+          </button>
+          <button id="tarif-patron" onclick="setTarif('patron')" type="button"
+            class="rounded-xl border border-neutral-800 bg-[#0f0f0f] px-3 py-2.5 flex flex-col gap-0.5 text-left transition-all duration-150 active:scale-[.97]">
+            <span class="text-xs font-semibold text-neutral-300 leading-tight">Patron</span>
+            <span class="text-[10px] text-neutral-500 leading-tight">entreprise</span>
+            <span class="text-[10px] text-emerald-400 font-bold mt-0.5">GRATUIT</span>
+          </button>
+          <button id="tarif-employe" onclick="setTarif('employe')" type="button"
+            class="rounded-xl border border-neutral-800 bg-[#0f0f0f] px-3 py-2.5 flex flex-col gap-0.5 text-left transition-all duration-150 active:scale-[.97]">
+            <span class="text-xs font-semibold text-neutral-300 leading-tight">Employé Cayo</span>
+            <span class="text-[10px] text-neutral-500 leading-tight">entreprise</span>
+            <span class="text-[10px] text-amber-400 font-bold mt-0.5">−15 %</span>
+          </button>
         </div>
-        <button id="toggle-baghera" onclick="toggleBaghera()" role="switch" aria-checked="false"
-          class="w-10 h-6 rounded-full border border-neutral-700 relative transition-all duration-200 shrink-0"
-          style="background-color:#262626">
-          <span id="toggle-thumb" class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full transition-all duration-200 shadow-sm"
-            style="background-color:#525252"></span>
-        </button>
       </div>
 
       <!-- Erreur -->
@@ -305,6 +424,10 @@
           class="w-full rounded-lg border border-neutral-800 hover:border-neutral-700 bg-[#0f0f0f] hover:bg-neutral-800/50 text-neutral-400 hover:text-neutral-200 text-xs font-semibold py-2 transition-all duration-150 active:scale-[.97]">
           PASCAL
         </button>
+        <button onclick="document.getElementById('matricule-input').value='LOUGACE'; submitMatricule();" type="button"
+          class="w-full rounded-lg border border-neutral-800 hover:border-neutral-700 bg-[#0f0f0f] hover:bg-neutral-800/50 text-neutral-400 hover:text-neutral-200 text-xs font-semibold py-2 transition-all duration-150 active:scale-[.97]">
+          LOUGACE
+        </button>
       </div>
 
       <div id="error-matricule" class="hidden items-center gap-2 rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2.5 text-xs text-red-400">
@@ -340,6 +463,20 @@
       <div>
         <h2 class="text-base font-semibold tracking-tight">Durée du contrat</h2>
         <p id="dur-label-prix" class="text-xs text-neutral-500 mt-0.5">25 000 $ par heure</p>
+      </div>
+
+      <!-- Mode paiement -->
+      <div class="flex items-center justify-between rounded-xl border border-neutral-800 bg-[#0f0f0f] px-3.5 py-2.5">
+        <div class="flex flex-col gap-0.5">
+          <span class="text-xs font-semibold text-neutral-300">Paiement en feuille</span>
+          <span id="paiement-label" class="text-[10px] text-neutral-600">Par défaut : Facture</span>
+        </div>
+        <button id="toggle-paiement" onclick="togglePaiement()" role="switch" aria-checked="false"
+          class="w-10 h-6 rounded-full border border-neutral-700 relative transition-all duration-200 shrink-0"
+          style="background-color:#262626">
+          <span id="paiement-thumb" class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full transition-all duration-200 shadow-sm"
+            style="background-color:#525252"></span>
+        </button>
       </div>
 
       <div class="grid grid-cols-3 gap-2">
@@ -401,13 +538,19 @@
   <div id="spinner" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
     <div class="flex flex-col items-center gap-3">
       <div class="w-8 h-8 rounded-full border-2 border-neutral-800 border-t-emerald-500 animate-spin"></div>
-      <span class="text-xs text-neutral-500">Enregistrement…</span>
+      <span id="spinner-text" class="text-xs text-neutral-500">Enregistrement…</span>
     </div>
   </div>
 
   <script>
     function initIcons() { if (window.lucide) lucide.createIcons(); }
-    document.addEventListener('DOMContentLoaded', initIcons);
+    document.addEventListener('DOMContentLoaded', () => {
+      initIcons();
+      // Pré-chauffe Apps Script pour réduire la latence des premières requêtes
+      if (typeof APPS_SCRIPT_URL !== 'undefined' && APPS_SCRIPT_URL && APPS_SCRIPT_URL !== 'VOTRE_URL_ICI') {
+        setTimeout(() => fetch(APPS_SCRIPT_URL + '?action=ping', { mode: 'no-cors' }).catch(() => {}), 500);
+      }
+    });
 
     const audio = document.getElementById('bg-audio');
     audio.volume = 1.0;
@@ -464,6 +607,17 @@
       });
     }
 
+    // Cache mémoire (TTL en ms) — évite les allers-retours répétés
+    const _memCache = {};
+    function jsonpCached(url, ttlMs) {
+      const hit = _memCache[url];
+      if (hit && Date.now() - hit.ts < ttlMs) return Promise.resolve(hit.data);
+      return jsonp(url).then(data => { _memCache[url] = { data, ts: Date.now() }; return data; });
+    }
+    function invalidateFrontendCache() {
+      Object.keys(_memCache).forEach(k => delete _memCache[k]);
+    }
+
     let currentTab = 'encours';
 
     function switchTab(tab) {
@@ -486,7 +640,7 @@
 
     async function fetchMamieStats() {
       try {
-        const data = await jsonp(APPS_SCRIPT_URL + '?action=get_mamie_stats');
+        const data = await jsonpCached(APPS_SCRIPT_URL + '?action=get_mamie_stats', 30000);
         if (data.success && data.stats) {
           document.getElementById('mamie-today').textContent = data.stats.today;
           document.getElementById('mamie-total').textContent = data.stats.total;
@@ -504,13 +658,158 @@
       fetchContrats('encours');
     }
 
+    // ── Suivi semaine ────────────────────────────────────────────
+    // SHA-256 du mot de passe (ne pas stocker le mot de passe en clair)
+    // Pour changer : calculer SHA-256 du nouveau mdp et remplacer cette valeur
+    const SUIVI_PWD_HASH = '0784f17ef5077470d47170379b9f126515fd258024fe4f6b3665a64a18b64c66';
+    let suiviUnlocked = false;
+    let suiviSortKey  = 'contrats';
+    let suiviSortAsc  = false;
+    let suiviCache    = [];
+
+    function loadSuiviProtected() {
+      if (suiviUnlocked) { loadSuivi(); return; }
+      showScreen('screen-suivi-lock');
+      setTimeout(() => document.getElementById('suivi-pwd-input').focus(), 100);
+    }
+
+    async function checkSuiviPassword() {
+      const val = document.getElementById('suivi-pwd-input').value;
+      const err = document.getElementById('suivi-pwd-error');
+      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(val));
+      const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+      if (hex === SUIVI_PWD_HASH) {
+        suiviUnlocked = true;
+        document.getElementById('suivi-pwd-input').value = '';
+        err.classList.add('hidden');
+        loadSuivi();
+      } else {
+        err.classList.remove('hidden');
+        document.getElementById('suivi-pwd-input').value = '';
+        setTimeout(() => err.classList.add('hidden'), 2000);
+      }
+    }
+
+    function loadSuivi() {
+      showScreen('screen-suivi');
+      syncSuiviSortUI();
+      fetchSuivi();
+    }
+
+    function setSuiviSort(key) {
+      suiviSortAsc = (suiviSortKey === key) ? !suiviSortAsc : false;
+      suiviSortKey = key;
+      syncSuiviSortUI();
+      renderSuivi(suiviCache);
+    }
+
+    function syncSuiviSortUI() {
+      ['contrats', 'heures', 'montant'].forEach(k => {
+        const btn   = document.getElementById('sort-' + k);
+        const arrow = document.getElementById('arrow-' + k);
+        if (!btn) return;
+        const active = suiviSortKey === k;
+        btn.style.backgroundColor = active ? '#f59e0b' : '';
+        btn.style.borderColor     = active ? '#f59e0b' : '';
+        btn.style.color           = active ? '#000'    : '';
+        if (arrow) arrow.textContent = active ? (suiviSortAsc ? ' ↑' : ' ↓') : '';
+      });
+    }
+
+    async function fetchSuivi() {
+      const list = document.getElementById('suivi-list');
+      list.innerHTML = '<p class="text-xs text-neutral-600 text-center py-6">Chargement…</p>';
+      try {
+        const data = await jsonpCached(APPS_SCRIPT_URL + '?action=get_suivi', 30000);
+        if (!data.success || !data.suivi || !data.suivi.length) {
+          list.innerHTML = '<p class="text-xs text-neutral-600 text-center py-6">Aucune donnée disponible</p>';
+          return;
+        }
+        suiviCache = data.suivi;
+        renderSuivi(suiviCache);
+      } catch(e) {
+        list.innerHTML = '<p class="text-xs text-red-400 text-center py-6">Erreur de connexion</p>';
+        console.error('[CHAMP suivi]', e);
+      }
+    }
+
+    function renderSuivi(suivi) {
+      const list = document.getElementById('suivi-list');
+      if (!suivi.length) { list.innerHTML = ''; return; }
+
+      // Totaux
+      const totC = suivi.reduce((s, p) => s + p.contrats, 0);
+      const totH = suivi.reduce((s, p) => s + p.heures,   0);
+      const totM = suivi.reduce((s, p) => s + p.montant,  0);
+      const sub  = document.getElementById('suivi-subtitle');
+      if (sub) sub.textContent = `${totC} contrats · ${totH}h · ${Number(totM).toLocaleString('fr-FR')} $`;
+      const totEl = document.getElementById('suivi-total');
+      if (totEl) {
+        totEl.classList.remove('hidden');
+        document.getElementById('total-contrats').textContent = totC;
+        document.getElementById('total-heures').textContent   = totH + 'h';
+        const totMFmt = totM > 0 ? Math.round(totM / 1000) + 'k $' : 'GRATUIT';
+        document.getElementById('total-montant').textContent  = totMFmt;
+      }
+
+      // Maxima pour les barres
+      const maxC = Math.max(...suivi.map(p => p.contrats), 1);
+      const maxH = Math.max(...suivi.map(p => p.heures),   1);
+      const maxM = Math.max(...suivi.map(p => p.montant),  1);
+
+      // Tri
+      const sorted = [...suivi].sort((a, b) => {
+        const diff = a[suiviSortKey] - b[suiviSortKey];
+        return suiviSortAsc ? diff : -diff;
+      });
+
+      const bar = (val, max, color) => {
+        const pct = Math.round((val / max) * 100);
+        return `<div class="flex-1 h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+          <div class="${color} h-full rounded-full" style="width:${pct}%"></div>
+        </div>`;
+      };
+
+      list.innerHTML = sorted.map((p, i) => {
+        const dot     = p.contrats > 0 ? 'bg-amber-400' : 'bg-neutral-700';
+        const mFmt    = p.montant > 0 ? Math.round(p.montant / 1000) + 'k $' : 'GRATUIT';
+        const mColor  = p.montant === 0 ? 'text-emerald-400' : 'text-neutral-200';
+        return `<div class="rounded-2xl border border-neutral-800 bg-neutral-900 overflow-hidden">
+          <div class="px-4 py-2.5 border-b border-neutral-800/60 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="w-1.5 h-1.5 rounded-full ${dot}"></span>
+              <span class="text-xs font-semibold text-neutral-300">${p.matricule}</span>
+            </div>
+            <span class="text-[10px] text-neutral-700 font-medium">#${i + 1}</span>
+          </div>
+          <div class="px-4 py-3 flex flex-col gap-2.5">
+            <div class="flex items-center gap-3">
+              <span class="text-[10px] text-neutral-600 w-14 shrink-0">Contrats</span>
+              ${bar(p.contrats, maxC, 'bg-amber-400')}
+              <span class="text-xs font-bold text-neutral-200 w-5 text-right shrink-0">${p.contrats}</span>
+            </div>
+            <div class="flex items-center gap-3">
+              <span class="text-[10px] text-neutral-600 w-14 shrink-0">Heures</span>
+              ${bar(p.heures, maxH, 'bg-sky-400')}
+              <span class="text-xs font-bold text-neutral-200 w-5 text-right shrink-0">${p.heures}h</span>
+            </div>
+            <div class="flex items-center gap-3">
+              <span class="text-[10px] text-neutral-600 w-14 shrink-0">Montant</span>
+              ${bar(p.montant, maxM, 'bg-emerald-400')}
+              <span class="text-xs font-bold ${mColor} w-14 text-right shrink-0">${mFmt}</span>
+            </div>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
     async function fetchContrats(tab) {
       const list   = document.getElementById('contrats-list');
       const action = tab === 'encours' ? 'get_contrats' : 'get_termines';
       list.innerHTML = '<p class="text-xs text-neutral-600 text-center py-6">Chargement…</p>';
 
       try {
-        const data = await jsonp(APPS_SCRIPT_URL + '?action=' + action);
+        const data = await jsonpCached(APPS_SCRIPT_URL + '?action=' + action, 30000);
 
         if (tab === 'encours') {
           const badge = document.getElementById('badge-encours');

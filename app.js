@@ -1,5 +1,5 @@
 // ── Configuration ───────────────────────────────────────────────
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwXP8rpXPkqfqbggXzArSzEAEJot21nyEAaL7Zr4jwnep_RL2kSvH5Yui-gLw9M3hbI6Q/exec';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzq7_P9QTbIkLKZDXIPnDBHO-1bKutMae1pLwFHiX9vjBo5IOiS9DVrba3KTIJ3SKEJdw/exec';
 
 // ── État ─────────────────────────────────────────────────────────
 let state = { prenom: '', nom: '', matricule: '', duree: 0, tarif: 'normal', paiement: 'Facture' };
@@ -71,7 +71,11 @@ function submitDuree(heures) {
 }
 
 // ── Envoi ────────────────────────────────────────────────────────
+let _sending = false; // guard anti double-tap
+
 async function sendToSheets() {
+  if (_sending) return;
+  _sending = true;
   const prixUnit   = getPrixUnit();
   const now        = new Date();
   const date       = formatDate(now);
@@ -90,6 +94,9 @@ async function sendToSheets() {
     return;
   }
 
+  // Identifiant unique pour déduplication côté Apps Script
+  const rid = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+
   const params = new URLSearchParams({
     prenom:      state.prenom,
     nom:         state.nom,
@@ -100,46 +107,36 @@ async function sendToSheets() {
     prix,
     paiement:    state.paiement,
     statut:      'Fin',
+    rid,
   });
 
-  const fullUrl = `${APPS_SCRIPT_URL}?${params.toString()}`;
-  const MAX_RETRIES = 3;
-  const TIMEOUT_MS  = 10000;
+  const fullUrl    = `${APPS_SCRIPT_URL}?${params.toString()}`;
+  const TIMEOUT_MS = 25000; // Apps Script cold start peut prendre 15-20s
 
-  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-    if (!navigator.onLine) {
-      showSpinner(true, 'Pas de réseau, attente…');
-      await new Promise(r => setTimeout(r, 2000));
-      if (!navigator.onLine) {
-        showSpinner(false);
-        showError('error-matricule', 'Pas de connexion Internet. Vérifiez votre réseau puis réessayez.');
-        showScreen('screen-matricule');
-        return;
-      }
-    }
+  if (!navigator.onLine) {
+    showSpinner(false);
+    showError('error-matricule', 'Pas de connexion Internet. Vérifiez votre réseau.');
+    showScreen('screen-matricule');
+    _sending = false;
+    return;
+  }
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const controller = new AbortController();
+  const timer      = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
-    try {
-      await fetch(fullUrl, { method: 'GET', mode: 'no-cors', signal: controller.signal });
-      clearTimeout(timer);
-      if (typeof invalidateFrontendCache === 'function') invalidateFrontendCache();
-      showSuccess(date, heureDebut, heureFin, temps, prix);
-      return;
-    } catch (err) {
-      clearTimeout(timer);
-      console.warn(`[CHAMP] Tentative ${attempt}/${MAX_RETRIES} échouée :`, err.message);
-      if (attempt < MAX_RETRIES) {
-        const delay = 2000 * attempt;
-        showSpinner(true, `Nouvelle tentative ${attempt + 1}/${MAX_RETRIES}…`);
-        await new Promise(r => setTimeout(r, delay));
-      } else {
-        showSpinner(false);
-        showError('error-matricule', `Connexion impossible (${MAX_RETRIES} tentatives). Vérifiez votre réseau.`);
-        showScreen('screen-matricule');
-      }
-    }
+  try {
+    await fetch(fullUrl, { method: 'GET', mode: 'no-cors', signal: controller.signal });
+    clearTimeout(timer);
+    if (typeof invalidateFrontendCache === 'function') invalidateFrontendCache();
+    _sending = false;
+    showSuccess(date, heureDebut, heureFin, temps, prix);
+  } catch (err) {
+    clearTimeout(timer);
+    _sending = false;
+    console.warn('[CHAMP] Envoi échoué :', err.message);
+    showSpinner(false);
+    showError('error-matricule', 'Connexion impossible. Vérifiez votre réseau et réessayez.');
+    showScreen('screen-matricule');
   }
 }
 

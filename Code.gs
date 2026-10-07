@@ -6,7 +6,7 @@
 // ===============================================================
 
 // Personnes dont les stats sont affichées dans l'écran Suivi semaine
-var PERSONNES_SUIVIES = ['MAMIE', 'PASCAL', 'LOUGACE'];
+var PERSONNES_SUIVIES = ['MAMIE', 'LARA', 'LOUGACE'];
 
 // ---------------------------------------------------------------
 //  CACHE HELPER  (TTL en secondes, max 21600 = 6h)

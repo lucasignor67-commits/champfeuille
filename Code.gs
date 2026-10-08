@@ -6,7 +6,7 @@
 // ===============================================================
 
 // Personnes dont les stats sont affichées dans l'écran Suivi semaine
-var PERSONNES_SUIVIES = ['MAMIE', 'LARA', 'LOUGACE'];
+var PERSONNES_SUIVIES = ['MAMIE', 'LOUGACE'];
 
 // ---------------------------------------------------------------
 //  CACHE HELPER  (TTL en secondes, max 21600 = 6h)
@@ -57,8 +57,9 @@ function doGet(e) {
     }
 
     if (readAction === 'get_suivi') {
-      var suiviData = withCache('get_suivi', 30, function() { return { suivi: getSuivi() }; });
-      var jsonS = JSON.stringify({ success: true, suivi: suiviData.suivi });
+      var suiviData = withCache('get_suivi', 30, function() { return getSuivi(); });
+      suiviData.success = true;
+      var jsonS = JSON.stringify(suiviData);
       var cbS   = (p.callback || '').replace(/[^a-zA-Z0-9_]/g, '');
       if (cbS) return ContentService.createTextOutput(cbS + '(' + jsonS + ')').setMimeType(ContentService.MimeType.JAVASCRIPT);
       return ContentService.createTextOutput(jsonS).setMimeType(ContentService.MimeType.JSON);
@@ -291,38 +292,128 @@ function mettreAJourStatut(e) {
 // ---------------------------------------------------------------
 //  SUIVI SEMAINE PAR PERSONNE
 // ---------------------------------------------------------------
-function getSuivi() {
-  var ss    = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheets()[0];
-  var data  = sheet.getDataRange().getValues();
+var PRIX_HEURE    = 25000; // plein tarif, sert au calcul du manque à gagner
+var JOURS_SEMAINE = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 
-  var suivis = PERSONNES_SUIVIES.map(function(matricule) {
-    var contrats = 0, heures = 0, montant = 0;
-    for (var i = 1; i < data.length; i++) {
-      var row = data[i];
-      if (!row[1] || row[1] === '') continue;
-      if (String(row[3]).trim().toUpperCase() !== matricule.toUpperCase()) continue;
-      contrats++;
-      heures  += parseInt(String(row[6]).replace(/[^0-9]/g, ''), 10) || 0;
-      montant += Number(row[7]) || 0;
-    }
-    return { matricule: matricule, contrats: contrats, heures: heures, montant: montant };
-  });
+// Index du jour (0 = lundi … 6 = dimanche), -1 si la date est illisible
+function jourSemaine(v, tz) {
+  if (Object.prototype.toString.call(v) === '[object Date]') {
+    if (isNaN(v.getTime())) return -1;
+    return parseInt(Utilities.formatDate(v, tz, 'u'), 10) - 1;
+  }
+  var m = String(v).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (!m) return -1;
+  return (new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1])).getDay() + 6) % 7;
+}
 
-  // Agrège tous les contrats des personnes hors liste
-  var tiersContrats = 0, tiersHeures = 0, tiersMontant = 0;
-  var suiviesUpper  = PERSONNES_SUIVIES.map(function(m) { return m.toUpperCase(); });
+function lireLignesSuivi(sheet, tz) {
+  var data   = sheet.getDataRange().getValues();
+  var lignes = [];
   for (var i = 1; i < data.length; i++) {
     var row = data[i];
     if (!row[1] || row[1] === '') continue;
-    if (suiviesUpper.indexOf(String(row[3]).trim().toUpperCase()) !== -1) continue;
-    tiersContrats++;
-    tiersHeures  += parseInt(String(row[6]).replace(/[^0-9]/g, ''), 10) || 0;
-    tiersMontant += Number(row[7]) || 0;
+    lignes.push({
+      matricule: String(row[3]).trim().toUpperCase(),
+      heures:    parseInt(String(row[6]).replace(/[^0-9]/g, ''), 10) || 0,
+      montant:   Number(row[7]) || 0,
+      feuille:   String(row[9] || '').trim().toUpperCase() === 'FEUILLE',
+      jour:      jourSemaine(row[0], tz)
+    });
   }
-  suivis.push({ matricule: 'Personnes tiers', contrats: tiersContrats, heures: tiersHeures, montant: tiersMontant, isTiers: true });
+  return lignes;
+}
 
-  return suivis;
+function nouvelAgregat(matricule) {
+  return { matricule: matricule, contrats: 0, heures: 0, montant: 0, facture: 0, feuille: 0 };
+}
+
+function cumuler(agg, l) {
+  agg.contrats++;
+  agg.heures  += l.heures;
+  agg.montant += l.montant;
+  if (l.feuille) agg.feuille += l.montant; else agg.facture += l.montant;
+}
+
+// Vrai si la feuille a la structure d'une feuille de contrats (PRENOM en B1)
+function estFeuilleContrats(sheet) {
+  var enTete = String(sheet.getRange(1, 2).getValue())
+    .normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase();
+  return enTete.indexOf('PRENOM') !== -1;
+}
+
+function getSuivi() {
+  var ss     = SpreadsheetApp.getActiveSpreadsheet();
+  var sheets = ss.getSheets();
+  var tz     = ss.getSpreadsheetTimeZone();
+  var lignes = lireLignesSuivi(sheets[0], tz);
+
+  var suivis       = PERSONNES_SUIVIES.map(function(m) { return nouvelAgregat(m); });
+  var suiviesUpper = PERSONNES_SUIVIES.map(function(m) { return m.toUpperCase(); });
+
+  // Personnes hors liste : un total + le détail par matricule
+  var tiersTotal  = nouvelAgregat('Personnes tiers');
+  tiersTotal.isTiers = true;
+  var tiersParMat = {};
+
+  var paiement = { facture: { contrats: 0, montant: 0 }, feuille: { contrats: 0, montant: 0 } };
+  var tarifs   = { plein: 0, reduit: 0, offert: 0, manque: 0 };
+  var jours    = JOURS_SEMAINE.map(function(j) { return { jour: j, contrats: 0, montant: 0 }; });
+
+  lignes.forEach(function(l) {
+    var idx = suiviesUpper.indexOf(l.matricule);
+    if (idx !== -1) {
+      cumuler(suivis[idx], l);
+    } else {
+      var key = l.matricule || '—';
+      if (!tiersParMat[key]) tiersParMat[key] = nouvelAgregat(key);
+      cumuler(tiersParMat[key], l);
+      cumuler(tiersTotal, l);
+    }
+
+    var mode = l.feuille ? paiement.feuille : paiement.facture;
+    mode.contrats++;
+    mode.montant += l.montant;
+
+    var plein = l.heures * PRIX_HEURE;
+    if (l.montant === 0)        tarifs.offert++;
+    else if (l.montant < plein) tarifs.reduit++;
+    else                        tarifs.plein++;
+    tarifs.manque += Math.max(0, plein - l.montant);
+
+    if (l.jour >= 0) {
+      jours[l.jour].contrats++;
+      jours[l.jour].montant += l.montant;
+    }
+  });
+  suivis.push(tiersTotal);
+
+  // Semaine précédente = 2e feuille (l'ancienne, après la rotation du dimanche)
+  // aDate = cumul jusqu'au même jour de la semaine, pour comparer à périmètre égal
+  var precedent = null;
+  if (sheets.length > 1 && estFeuilleContrats(sheets[1])) {
+    var auj = jourSemaine(new Date(), tz);
+    precedent = { contrats: 0, heures: 0, montant: 0, aDate: { contrats: 0, heures: 0, montant: 0 } };
+    lireLignesSuivi(sheets[1], tz).forEach(function(l) {
+      precedent.contrats++;
+      precedent.heures  += l.heures;
+      precedent.montant += l.montant;
+      if (l.jour <= auj) {
+        precedent.aDate.contrats++;
+        precedent.aDate.heures  += l.heures;
+        precedent.aDate.montant += l.montant;
+      }
+    });
+    if (!precedent.contrats) precedent = null;
+  }
+
+  return {
+    suivi:     suivis,
+    tiers:     Object.keys(tiersParMat).map(function(k) { return tiersParMat[k]; }),
+    paiement:  paiement,
+    tarifs:    tarifs,
+    jours:     jours,
+    precedent: precedent
+  };
 }
 
 // ---------------------------------------------------------------

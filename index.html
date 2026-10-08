@@ -268,17 +268,24 @@
           <div class="px-3 py-3 flex flex-col gap-0.5 items-center">
             <span class="text-[10px] text-neutral-600 font-medium uppercase tracking-wide">Contrats</span>
             <span id="total-contrats" class="text-lg font-bold text-neutral-100">—</span>
+            <span id="delta-contrats"></span>
           </div>
           <div class="px-3 py-3 flex flex-col gap-0.5 items-center">
             <span class="text-[10px] text-neutral-600 font-medium uppercase tracking-wide">Heures</span>
             <span id="total-heures" class="text-lg font-bold text-neutral-100">—</span>
+            <span id="delta-heures"></span>
           </div>
           <div class="px-3 py-3 flex flex-col gap-0.5 items-center">
             <span class="text-[10px] text-neutral-600 font-medium uppercase tracking-wide">Montant</span>
             <span id="total-montant" class="text-lg font-bold text-neutral-100">—</span>
+            <span id="delta-montant"></span>
           </div>
         </div>
+        <p id="suivi-prev" class="hidden px-3 py-2 border-t border-neutral-800/60 text-[10px] text-neutral-600 text-center"></p>
       </div>
+
+      <!-- Paiement, tarifs, détail par jour (rendu par renderSuiviExtras) -->
+      <div id="suivi-extras" class="hidden flex-col gap-3"></div>
 
       <!-- Tri -->
       <div class="flex gap-2">
@@ -352,7 +359,7 @@
             class="rounded-xl border border-neutral-800 bg-[#0f0f0f] px-3 py-2.5 flex flex-col gap-0.5 text-left transition-all duration-150 active:scale-[.97]">
             <span class="text-xs font-semibold text-neutral-300 leading-tight">La Isla Baghera</span>
             <span class="text-[10px] text-neutral-500 leading-tight">et crew affiliés</span>
-            <span class="text-[10px] text-emerald-400 font-bold mt-0.5">GRATUIT</span>
+            <span class="text-[10px] text-amber-400 font-bold mt-0.5">−50 %</span>
           </button>
           <button id="tarif-gouv" onclick="setTarif('gouv')" type="button"
             class="rounded-xl border border-neutral-800 bg-[#0f0f0f] px-3 py-2.5 flex flex-col gap-0.5 text-left transition-all duration-150 active:scale-[.97]">
@@ -419,10 +426,6 @@
         <button onclick="document.getElementById('matricule-input').value='MAMIE'; submitMatricule();" type="button"
           class="w-full rounded-lg border border-neutral-800 hover:border-neutral-700 bg-[#0f0f0f] hover:bg-neutral-800/50 text-neutral-400 hover:text-neutral-200 text-xs font-semibold py-2 transition-all duration-150 active:scale-[.97]">
           MAMIE
-        </button>
-        <button onclick="document.getElementById('matricule-input').value='LARA'; submitMatricule();" type="button"
-          class="w-full rounded-lg border border-neutral-800 hover:border-neutral-700 bg-[#0f0f0f] hover:bg-neutral-800/50 text-neutral-400 hover:text-neutral-200 text-xs font-semibold py-2 transition-all duration-150 active:scale-[.97]">
-          LARA
         </button>
         <button onclick="document.getElementById('matricule-input').value='LOUGACE'; submitMatricule();" type="button"
           class="w-full rounded-lg border border-neutral-800 hover:border-neutral-700 bg-[#0f0f0f] hover:bg-neutral-800/50 text-neutral-400 hover:text-neutral-200 text-xs font-semibold py-2 transition-all duration-150 active:scale-[.97]">
@@ -666,6 +669,29 @@
     let suiviSortKey  = 'contrats';
     let suiviSortAsc  = false;
     let suiviCache    = [];
+    let suiviTiers    = [];   // détail par matricule des personnes tiers
+    let tiersOpen     = false;
+
+    function esc(s) {
+      return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+    }
+
+    function fmtK(n) {
+      if (!n) return '0 $';
+      return(n / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 1 }) + 'k $';
+    }
+
+    function suiviBar(val, max, color) {
+      const pct = Math.round((val / max) * 100);
+      return `<div class="flex-1 h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+        <div class="${color} h-full rounded-full" style="width:${pct}%"></div>
+      </div>`;
+    }
+
+    function toggleTiersDetail() {
+      tiersOpen = !tiersOpen;
+      renderSuivi(suiviCache);
+    }
 
     function loadSuiviProtected() {
       if (suiviUnlocked) { loadSuivi(); return; }
@@ -726,7 +752,9 @@
           return;
         }
         suiviCache = data.suivi;
+        suiviTiers = data.tiers || [];
         renderSuivi(suiviCache);
+        renderSuiviExtras(data);
       } catch(e) {
         list.innerHTML = '<p class="text-xs text-red-400 text-center py-6">Erreur de connexion</p>';
         console.error('[CHAMP suivi]', e);
@@ -748,7 +776,7 @@
         totEl.classList.remove('hidden');
         document.getElementById('total-contrats').textContent = totC;
         document.getElementById('total-heures').textContent   = totH + 'h';
-        const totMFmt = totM > 0 ? Math.round(totM / 1000) + 'k $' : 'GRATUIT';
+        const totMFmt = totM > 0 ? fmtK(totM) : 'GRATUIT';
         document.getElementById('total-montant').textContent  = totMFmt;
       }
 
@@ -763,25 +791,42 @@
         return suiviSortAsc ? diff : -diff;
       });
 
-      const bar = (val, max, color) => {
-        const pct = Math.round((val / max) * 100);
-        return `<div class="flex-1 h-1.5 bg-neutral-800 rounded-full overflow-hidden">
-          <div class="${color} h-full rounded-full" style="width:${pct}%"></div>
-        </div>`;
+      const bar = suiviBar;
+
+      // Détail des tiers par matricule, affiché seulement après appui sur ⋯
+      const tiersDetail = () => {
+        const rows = [...suiviTiers].sort((a, b) => {
+          const diff = a[suiviSortKey] - b[suiviSortKey];
+          return suiviSortAsc ? diff : -diff;
+        });
+        return `<div class="border-t border-neutral-800/60 divide-y divide-neutral-800/60">` + rows.map(t =>
+          `<div class="px-4 py-2 flex items-center justify-between gap-3">
+            <span class="text-xs font-semibold text-neutral-300 truncate">${esc(t.matricule)}</span>
+            <span class="text-[10px] text-neutral-500 shrink-0">${t.contrats} contrat${t.contrats > 1 ? 's' : ''} · ${t.heures}h · <span class="text-neutral-300 font-semibold">${t.montant > 0 ? fmtK(t.montant) : 'GRATUIT'}</span></span>
+          </div>`).join('') + `</div>`;
       };
 
       list.innerHTML = sorted.map((p, i) => {
         const isTiers = !!p.isTiers;
         const dot     = isTiers ? 'bg-sky-400' : (p.contrats > 0 ? 'bg-amber-400' : 'bg-neutral-700');
         const border  = isTiers ? 'border-sky-500/20' : 'border-neutral-800';
-        const mFmt    = p.montant > 0 ? Math.round(p.montant / 1000) + 'k $' : 'GRATUIT';
+        const mFmt    = p.montant > 0 ? fmtK(p.montant) : 'GRATUIT';
         const mColor  = p.montant === 0 ? 'text-emerald-400' : 'text-neutral-200';
-        const rank    = isTiers ? '' : `<span class="text-[10px] text-neutral-700 font-medium">#${i + 1}</span>`;
+        const more    = suiviTiers.length
+          ? `<button onclick="toggleTiersDetail()" aria-label="Détail des personnes tiers" aria-expanded="${tiersOpen}"
+               class="px-3 -mr-3 -my-2 py-2 text-lg leading-none font-bold ${tiersOpen ? 'text-sky-300' : 'text-sky-500/70'} hover:text-sky-300 transition-colors">⋯</button>`
+          : '';
+        const rank    = isTiers ? more : `<span class="text-[10px] text-neutral-700 font-medium">#${i + 1}</span>`;
+        const paie    = p.facture === undefined ? '' :
+          `<div class="flex items-center justify-between text-[10px] text-neutral-600">
+              <span>Facture <span class="text-neutral-400 font-semibold">${fmtK(p.facture)}</span></span>
+              <span>Feuille <span class="text-neutral-400 font-semibold">${fmtK(p.feuille)}</span></span>
+            </div>`;
         return `${isTiers ? '<div class="h-px bg-neutral-800 my-1"></div>' : ''}<div class="rounded-2xl border ${border} bg-neutral-900 overflow-hidden">
           <div class="px-4 py-2.5 border-b border-neutral-800/60 flex items-center justify-between">
             <div class="flex items-center gap-2">
               <span class="w-1.5 h-1.5 rounded-full ${dot}"></span>
-              <span class="text-xs font-semibold ${isTiers ? 'text-sky-400' : 'text-neutral-300'}">${p.matricule}</span>
+              <span class="text-xs font-semibold ${isTiers ? 'text-sky-400' : 'text-neutral-300'}">${esc(p.matricule)}</span>
             </div>
             ${rank}
           </div>
@@ -801,9 +846,88 @@
               ${bar(p.montant, maxM, 'bg-emerald-400')}
               <span class="text-xs font-bold ${mColor} w-14 text-right shrink-0">${mFmt}</span>
             </div>
+            ${paie}
           </div>
+          ${isTiers && tiersOpen && suiviTiers.length ? tiersDetail() : ''}
         </div>`;
       }).join('');
+    }
+
+    // Paiement, tarifs, détail par jour et comparaison semaine précédente
+    function renderSuiviExtras(data) {
+      const box = document.getElementById('suivi-extras');
+      const tot = k => data.suivi.reduce((s, p) => s + p[k], 0);
+
+      // Écart vs semaine précédente, cumulée jusqu'au même jour
+      const prev  = data.precedent;
+      const delta = (cur, old) => {
+        if (!prev || !old) return '';
+        const pct = Math.round((cur - old) / old * 100);
+        return `<span class="text-[10px] font-semibold ${pct >= 0 ? 'text-emerald-400' : 'text-red-400'}">${pct >= 0 ? '▲ +' : '▼ '}${pct} %</span>`;
+      };
+      ['contrats', 'heures', 'montant'].forEach(k => {
+        document.getElementById('delta-' + k).innerHTML = delta(tot(k), prev && prev.aDate[k]);
+      });
+      const prevEl = document.getElementById('suivi-prev');
+      prevEl.classList.toggle('hidden', !prev);
+      if (prev) prevEl.textContent = `vs semaine précédente au même jour · total sem. préc. : ${prev.contrats} contrats · ${prev.heures}h · ${fmtK(prev.montant)}`;
+
+      const card = (dotColor, title, body) =>
+        `<div class="rounded-2xl border border-neutral-800 bg-neutral-900 overflow-hidden">
+          <div class="px-4 py-2.5 border-b border-neutral-800/60 flex items-center gap-2">
+            <span class="w-1.5 h-1.5 rounded-full ${dotColor}"></span>
+            <span class="text-xs font-semibold text-neutral-300">${title}</span>
+          </div>
+          ${body}
+        </div>`;
+      const cell = (label, value, sub) =>
+        `<div class="px-3 py-3 flex flex-col gap-0.5 items-center">
+          <span class="text-[10px] text-neutral-600 font-medium uppercase tracking-wide">${label}</span>
+          <span class="text-lg font-bold text-neutral-100">${value}</span>
+          ${sub ? `<span class="text-[10px] text-neutral-600">${sub}</span>` : ''}
+        </div>`;
+      const nb = n => `${n} contrat${n > 1 ? 's' : ''}`;
+
+      let html = '';
+
+      if (data.paiement) {
+        const { facture, feuille } = data.paiement;
+        html += card('bg-emerald-400', 'Paiement',
+          `<div class="grid grid-cols-2 divide-x divide-neutral-800/60">
+            ${cell('Facture', fmtK(facture.montant), nb(facture.contrats))}
+            ${cell('Feuille', fmtK(feuille.montant), nb(feuille.contrats))}
+          </div>`);
+      }
+
+      if (data.tarifs) {
+        const t = data.tarifs;
+        html += card('bg-amber-400', 'Tarifs',
+          `<div class="grid grid-cols-3 divide-x divide-neutral-800/60">
+            ${cell('Plein tarif', t.plein)}
+            ${cell('Réduits', t.reduit)}
+            ${cell('Offerts', t.offert)}
+          </div>
+          <div class="px-4 py-2 border-t border-neutral-800/60 flex items-center justify-between text-[11px]">
+            <span class="text-neutral-500">Manque à gagner</span>
+            <span class="font-bold ${t.manque > 0 ? 'text-red-400' : 'text-neutral-400'}">${fmtK(t.manque)}</span>
+          </div>`);
+      }
+
+      if (data.jours) {
+        const maxJ = Math.max(...data.jours.map(j => j.contrats), 1);
+        html += card('bg-sky-400', 'Par jour',
+          `<div class="px-4 py-3 flex flex-col gap-2">` + data.jours.map(j =>
+            `<div class="flex items-center gap-3">
+              <span class="text-[10px] text-neutral-600 w-7 shrink-0">${j.jour}</span>
+              ${suiviBar(j.contrats, maxJ, 'bg-sky-400')}
+              <span class="text-xs font-bold text-neutral-200 w-5 text-right shrink-0">${j.contrats}</span>
+              <span class="text-[10px] text-neutral-500 w-14 text-right shrink-0">${fmtK(j.montant)}</span>
+            </div>`).join('') + `</div>`);
+      }
+
+      box.innerHTML = html;
+      box.classList.toggle('hidden', !html);
+      box.classList.toggle('flex', !!html);
     }
 
     async function fetchContrats(tab) {

@@ -1,5 +1,5 @@
 // ── Configuration ───────────────────────────────────────────────
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbywG6yIhW4d-ifN6K9_iBWbQyf_HcY4xzKeC0dYpg3e62lPtxnLM5ZNMWoeIgPX1tFUhw/exec';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbztxMa1x9iZkpBJmJfyYdLMmNIHGI1GZNQWlCd_ALQ5tyoY7pboBmvkdaMv0usX24Ei/exec';
 
 // ── État ─────────────────────────────────────────────────────────
 let state = { prenom: '', nom: '', matricule: '', duree: 0, tarif: 'normal', paiement: 'Facture' };
@@ -197,7 +197,8 @@ function syncPaiementUI() {
 
 // ── Tarifs ───────────────────────────────────────────────────────
 function getPrixUnit() {
-  if (['isla', 'gouv', 'patron'].includes(state.tarif)) return 0;
+  if (['gouv', 'patron'].includes(state.tarif)) return 0;
+  if (state.tarif === 'isla') return Math.round(25000 * 0.5); // 12 500
   if (state.tarif === 'employe') return Math.round(25000 * 0.85); // 21 250
   return 25000;
 }
@@ -226,6 +227,7 @@ function updateDureePrices() {
   const label = document.getElementById('dur-label-prix');
   if (label) {
     if (prixUnit === 0) label.textContent = 'Accès gratuit';
+    else if (state.tarif === 'isla') label.textContent = prixUnit.toLocaleString('fr-FR') + ' $ / heure (−50 %)';
     else if (state.tarif === 'employe') label.textContent = prixUnit.toLocaleString('fr-FR') + ' $ / heure (−15 %)';
     else label.textContent = prixUnit.toLocaleString('fr-FR') + ' $ par heure';
   }

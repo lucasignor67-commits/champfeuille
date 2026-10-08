@@ -689,7 +689,8 @@
 
     function fmtK(n) {
       if (!n) return '0 $';
-      return(n / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 1 }) + 'k $';
+      if (n >= 1e6) return (n / 1e6).toLocaleString('fr-FR', { maximumFractionDigits: 2 }) + 'M $';
+      return (n / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 1 }) + 'k $';
     }
 
 

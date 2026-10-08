@@ -54,6 +54,7 @@
     input, button, a { -webkit-tap-highlight-color: transparent; }
     input { font-size: 16px; } /* évite le zoom auto iOS */
     input:-webkit-autofill { -webkit-box-shadow: 0 0 0 40px #0f0f0f inset !important; -webkit-text-fill-color: #ededed !important; }
+    #suivi-list > p { grid-column: 1 / -1; } /* messages (chargement, erreur) sur toute la largeur */
 
   </style>
 </head>
@@ -240,7 +241,7 @@
 
   <!-- ── SUIVI SEMAINE ── -->
   <div id="screen-suivi" class="screen">
-    <div class="w-full max-w-sm flex flex-col gap-3 animate-fadeUp">
+    <div class="w-full max-w-sm md:max-w-3xl flex flex-col gap-3 animate-fadeUp">
 
       <!-- Nav -->
       <div class="flex items-center justify-between">
@@ -261,6 +262,10 @@
         <h2 class="text-base font-semibold tracking-tight">Suivi semaine</h2>
         <p id="suivi-subtitle" class="text-xs text-neutral-500 mt-0.5">—</p>
       </div>
+
+      <!-- Deux colonnes sur grand écran : résumé à gauche, personnes à droite -->
+      <div class="flex flex-col md:grid md:grid-cols-2 md:items-start gap-3">
+      <div class="flex flex-col gap-3">
 
       <!-- Résumé total -->
       <div id="suivi-total" class="hidden rounded-2xl border border-neutral-800 bg-neutral-900 overflow-hidden">
@@ -285,7 +290,10 @@
       </div>
 
       <!-- Paiement, tarifs, détail par jour (rendu par renderSuiviExtras) -->
-      <div id="suivi-extras" class="hidden flex-col gap-3"></div>
+      <div id="suivi-extras" class="hidden grid-cols-2 gap-3"></div>
+
+      </div>
+      <div class="flex flex-col gap-3">
 
       <!-- Tri -->
       <div class="flex gap-2">
@@ -304,8 +312,11 @@
       </div>
 
       <!-- Cartes -->
-      <div id="suivi-list" class="flex flex-col gap-2">
+      <div id="suivi-list" class="grid grid-cols-2 gap-2">
         <p class="text-xs text-neutral-600 text-center py-6">Chargement…</p>
+      </div>
+
+      </div>
       </div>
 
     </div>
@@ -681,12 +692,6 @@
       return(n / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 1 }) + 'k $';
     }
 
-    function suiviBar(val, max, color) {
-      const pct = Math.round((val / max) * 100);
-      return `<div class="flex-1 h-1.5 bg-neutral-800 rounded-full overflow-hidden">
-        <div class="${color} h-full rounded-full" style="width:${pct}%"></div>
-      </div>`;
-    }
 
     function toggleTiersDetail() {
       tiersOpen = !tiersOpen;
@@ -785,13 +790,28 @@
       const maxH = Math.max(...suivi.map(p => p.heures),   1);
       const maxM = Math.max(...suivi.map(p => p.montant),  1);
 
-      // Tri
-      const sorted = [...suivi].sort((a, b) => {
+      // Tri des personnes ; la carte tiers (pleine largeur) reste toujours en dernier
+      const sorted = suivi.filter(p => !p.isTiers).sort((a, b) => {
         const diff = a[suiviSortKey] - b[suiviSortKey];
         return suiviSortAsc ? diff : -diff;
       });
+      const tiers = suivi.find(p => p.isTiers);
+      if (tiers) sorted.push(tiers);
 
-      const bar = suiviBar;
+      const stat = (label, val, max, color, txt, txtColor = 'text-neutral-200') =>
+        `<div class="flex flex-col gap-1 min-w-0">
+          <div class="flex items-baseline justify-between gap-2">
+            <span class="text-[10px] text-neutral-600">${label}</span>
+            <span class="text-xs font-bold ${txtColor}">${txt}</span>
+          </div>
+          <div class="h-1 bg-neutral-800 rounded-full overflow-hidden">
+            <div class="${color} h-full rounded-full" style="width:${Math.round((val / max) * 100)}%"></div>
+          </div>
+        </div>`;
+      const paieLine = (label, n) =>
+        `<div class="flex items-baseline justify-between gap-2">
+          <span>${label}</span><span class="text-neutral-400 font-semibold">${fmtK(n)}</span>
+        </div>`;
 
       // Détail des tiers par matricule, affiché seulement après appui sur ⋯
       const tiersDetail = () => {
@@ -800,7 +820,7 @@
           return suiviSortAsc ? diff : -diff;
         });
         return `<div class="border-t border-neutral-800/60 divide-y divide-neutral-800/60">` + rows.map(t =>
-          `<div class="px-4 py-2 flex items-center justify-between gap-3">
+          `<div class="px-3 py-2 flex items-center justify-between gap-3">
             <span class="text-xs font-semibold text-neutral-300 truncate">${esc(t.matricule)}</span>
             <span class="text-[10px] text-neutral-500 shrink-0">${t.contrats} contrat${t.contrats > 1 ? 's' : ''} · ${t.heures}h · <span class="text-neutral-300 font-semibold">${t.montant > 0 ? fmtK(t.montant) : 'GRATUIT'}</span></span>
           </div>`).join('') + `</div>`;
@@ -817,34 +837,25 @@
                class="px-3 -mr-3 -my-2 py-2 text-lg leading-none font-bold ${tiersOpen ? 'text-sky-300' : 'text-sky-500/70'} hover:text-sky-300 transition-colors">⋯</button>`
           : '';
         const rank    = isTiers ? more : `<span class="text-[10px] text-neutral-700 font-medium">#${i + 1}</span>`;
+        // Carte personne = demi-largeur (stats empilées) ; carte tiers = pleine largeur (stats côte à côte)
         const paie    = p.facture === undefined ? '' :
-          `<div class="flex items-center justify-between text-[10px] text-neutral-600">
-              <span>Facture <span class="text-neutral-400 font-semibold">${fmtK(p.facture)}</span></span>
-              <span>Feuille <span class="text-neutral-400 font-semibold">${fmtK(p.feuille)}</span></span>
+          `<div class="${isTiers ? 'grid grid-cols-2 gap-4' : 'flex flex-col gap-1'} pt-2 border-t border-neutral-800/60 text-[10px] text-neutral-600">
+              ${paieLine('Facture', p.facture)}
+              ${paieLine('Feuille', p.feuille)}
             </div>`;
-        return `${isTiers ? '<div class="h-px bg-neutral-800 my-1"></div>' : ''}<div class="rounded-2xl border ${border} bg-neutral-900 overflow-hidden">
-          <div class="px-4 py-2.5 border-b border-neutral-800/60 flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              <span class="w-1.5 h-1.5 rounded-full ${dot}"></span>
-              <span class="text-xs font-semibold ${isTiers ? 'text-sky-400' : 'text-neutral-300'}">${esc(p.matricule)}</span>
+        return `<div class="${isTiers ? 'col-span-2' : ''} rounded-2xl border ${border} bg-neutral-900 overflow-hidden">
+          <div class="px-3 py-2.5 border-b border-neutral-800/60 flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2 min-w-0">
+              <span class="w-1.5 h-1.5 rounded-full shrink-0 ${dot}"></span>
+              <span class="text-xs font-semibold truncate ${isTiers ? 'text-sky-400' : 'text-neutral-300'}">${esc(p.matricule)}</span>
             </div>
             ${rank}
           </div>
-          <div class="px-4 py-3 flex flex-col gap-2.5">
-            <div class="flex items-center gap-3">
-              <span class="text-[10px] text-neutral-600 w-14 shrink-0">Contrats</span>
-              ${bar(p.contrats, maxC, 'bg-amber-400')}
-              <span class="text-xs font-bold text-neutral-200 w-5 text-right shrink-0">${p.contrats}</span>
-            </div>
-            <div class="flex items-center gap-3">
-              <span class="text-[10px] text-neutral-600 w-14 shrink-0">Heures</span>
-              ${bar(p.heures, maxH, 'bg-sky-400')}
-              <span class="text-xs font-bold text-neutral-200 w-5 text-right shrink-0">${p.heures}h</span>
-            </div>
-            <div class="flex items-center gap-3">
-              <span class="text-[10px] text-neutral-600 w-14 shrink-0">Montant</span>
-              ${bar(p.montant, maxM, 'bg-emerald-400')}
-              <span class="text-xs font-bold ${mColor} w-14 text-right shrink-0">${mFmt}</span>
+          <div class="px-3 py-3 flex flex-col gap-2.5">
+            <div class="${isTiers ? 'grid grid-cols-3 gap-3' : 'flex flex-col gap-2.5'}">
+              ${stat('Contrats', p.contrats, maxC, 'bg-amber-400', p.contrats)}
+              ${stat('Heures', p.heures, maxH, 'bg-sky-400', p.heures + 'h')}
+              ${stat('Montant', p.montant, maxM, 'bg-emerald-400', mFmt, mColor)}
             </div>
             ${paie}
           </div>
@@ -880,54 +891,59 @@
           </div>
           ${body}
         </div>`;
-      const cell = (label, value, sub) =>
-        `<div class="px-3 py-3 flex flex-col gap-0.5 items-center">
-          <span class="text-[10px] text-neutral-600 font-medium uppercase tracking-wide">${label}</span>
-          <span class="text-lg font-bold text-neutral-100">${value}</span>
-          ${sub ? `<span class="text-[10px] text-neutral-600">${sub}</span>` : ''}
+      const line = (label, value, sub) =>
+        `<div class="flex items-center justify-between gap-2">
+          <div class="flex flex-col min-w-0">
+            <span class="text-[10px] text-neutral-600 font-medium uppercase tracking-wide">${label}</span>
+            ${sub ? `<span class="text-[10px] text-neutral-600">${sub}</span>` : ''}
+          </div>
+          <span class="text-sm font-bold text-neutral-100 shrink-0">${value}</span>
         </div>`;
       const nb = n => `${n} contrat${n > 1 ? 's' : ''}`;
 
+      // Grille 2 colonnes : Paiement | Tarifs côte à côte, Par jour sur toute la largeur
       let html = '';
 
       if (data.paiement) {
         const { facture, feuille } = data.paiement;
         html += card('bg-emerald-400', 'Paiement',
-          `<div class="grid grid-cols-2 divide-x divide-neutral-800/60">
-            ${cell('Facture', fmtK(facture.montant), nb(facture.contrats))}
-            ${cell('Feuille', fmtK(feuille.montant), nb(feuille.contrats))}
+          `<div class="px-3 py-3 flex flex-col gap-2.5">
+            ${line('Facture', fmtK(facture.montant), nb(facture.contrats))}
+            ${line('Feuille', fmtK(feuille.montant), nb(feuille.contrats))}
           </div>`);
       }
 
       if (data.tarifs) {
         const t = data.tarifs;
         html += card('bg-amber-400', 'Tarifs',
-          `<div class="grid grid-cols-3 divide-x divide-neutral-800/60">
-            ${cell('Plein tarif', t.plein)}
-            ${cell('Réduits', t.reduit)}
-            ${cell('Offerts', t.offert)}
-          </div>
-          <div class="px-4 py-2 border-t border-neutral-800/60 flex items-center justify-between text-[11px]">
-            <span class="text-neutral-500">Manque à gagner</span>
-            <span class="font-bold ${t.manque > 0 ? 'text-red-400' : 'text-neutral-400'}">${fmtK(t.manque)}</span>
+          `<div class="px-3 py-3 flex flex-col gap-2">
+            ${line('Plein tarif', t.plein)}
+            ${line('Réduits', t.reduit)}
+            ${line('Offerts', t.offert)}
+            <div class="pt-2 border-t border-neutral-800/60 flex items-baseline justify-between gap-2 text-[10px]">
+              <span class="text-neutral-500">Manque à gagner</span>
+              <span class="font-bold shrink-0 ${t.manque > 0 ? 'text-red-400' : 'text-neutral-400'}">${fmtK(t.manque)}</span>
+            </div>
           </div>`);
       }
 
       if (data.jours) {
         const maxJ = Math.max(...data.jours.map(j => j.contrats), 1);
-        html += card('bg-sky-400', 'Par jour',
-          `<div class="px-4 py-3 flex flex-col gap-2">` + data.jours.map(j =>
-            `<div class="flex items-center gap-3">
-              <span class="text-[10px] text-neutral-600 w-7 shrink-0">${j.jour}</span>
-              ${suiviBar(j.contrats, maxJ, 'bg-sky-400')}
-              <span class="text-xs font-bold text-neutral-200 w-5 text-right shrink-0">${j.contrats}</span>
-              <span class="text-[10px] text-neutral-500 w-14 text-right shrink-0">${fmtK(j.montant)}</span>
-            </div>`).join('') + `</div>`);
+        html += `<div class="col-span-2">` + card('bg-sky-400', 'Par jour',
+          `<div class="px-3 py-3 grid grid-cols-7 gap-1.5">` + data.jours.map(j =>
+            `<div class="flex flex-col items-center gap-1 min-w-0">
+              <span class="text-[10px] font-bold ${j.contrats ? 'text-neutral-200' : 'text-neutral-700'}">${j.contrats}</span>
+              <div class="w-full h-16 bg-neutral-800 rounded-md overflow-hidden flex items-end">
+                <div class="w-full bg-sky-400 rounded-md" style="height:${Math.round((j.contrats / maxJ) * 100)}%"></div>
+              </div>
+              <span class="text-[10px] text-neutral-500 font-medium">${j.jour}</span>
+              <span class="text-[9px] text-neutral-600 whitespace-nowrap">${j.montant ? fmtK(j.montant).replace(' $', '') : '—'}</span>
+            </div>`).join('') + `</div>`) + `</div>`;
       }
 
       box.innerHTML = html;
       box.classList.toggle('hidden', !html);
-      box.classList.toggle('flex', !!html);
+      box.classList.toggle('grid', !!html);
     }
 
     async function fetchContrats(tab) {

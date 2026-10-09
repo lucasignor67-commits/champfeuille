@@ -56,6 +56,44 @@
     input:-webkit-autofill { -webkit-box-shadow: 0 0 0 40px #0f0f0f inset !important; -webkit-text-fill-color: #ededed !important; }
     #suivi-list > p { grid-column: 1 / -1; } /* messages (chargement, erreur) sur toute la largeur */
 
+    /* ── Micro-animations ── */
+    @keyframes riseIn { from { opacity: 0; transform: translateY(8px); } }
+    @keyframes growX  { from { transform: scaleX(0); } }
+    @keyframes growY  { from { transform: scaleY(0); } }
+    /* apparition en cascade : --i = rang de l'élément */
+    .stagger { animation: riseIn .3s ease backwards; animation-delay: calc(var(--i, 0) * 45ms); }
+    .bar-x   { transform-origin: left;   animation: growX .7s cubic-bezier(.22,1,.36,1) backwards; }
+    .bar-y   { transform-origin: bottom; animation: growY .7s cubic-bezier(.22,1,.36,1) backwards; }
+
+    .lift { transition: transform .2s ease, box-shadow .2s ease; }
+    .row-hover { transition: background-color .15s ease; }
+    @media (hover: hover) {
+      .lift:hover      { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(0,0,0,.45); }
+      .row-hover:hover { background-color: rgba(255,255,255,.03); }
+    }
+
+    /* Colonne d'un jour : grossit au survol / à l'appui et affiche le détail */
+    .day-col { position: relative; outline: none; cursor: default; transition: transform .2s cubic-bezier(.34,1.56,.64,1); }
+    .day-col .day-bar { transition: filter .2s ease; }
+    .day-tip {
+      position: absolute; bottom: 100%; left: 50%; z-index: 10;
+      transform: translate(var(--tx, -50%), 4px) scale(.95);
+      opacity: 0; pointer-events: none; white-space: nowrap;
+      transition: opacity .15s ease, transform .15s ease;
+      background: #171717; border: 1px solid #404040; border-radius: .5rem;
+      padding: .375rem .5rem; box-shadow: 0 8px 24px rgba(0,0,0,.6);
+    }
+    .day-tip.tip-l { left: 0; --tx: 0; }
+    .day-tip.tip-r { left: auto; right: 0; --tx: 0; }
+    .day-col:hover, .day-col:focus { transform: scale(1.12); z-index: 5; }
+    .day-col:hover .day-bar, .day-col:focus .day-bar { filter: brightness(1.25); }
+    .day-col:hover .day-tip, .day-col:focus .day-tip { opacity: 1; transform: translate(var(--tx, -50%), -6px) scale(1); }
+
+    @media (prefers-reduced-motion: reduce) {
+      .stagger, .bar-x, .bar-y { animation: none; }
+      .lift, .day-col, .day-tip { transition: none; }
+    }
+
   </style>
 </head>
 <body class="min-h-dvh bg-[#080808] text-[#ededed] flex items-center justify-center p-5 antialiased">
@@ -724,9 +762,21 @@
     }
 
 
+    // Fait défiler un nombre de 0 à sa valeur finale
+    function countUp(el, to, fmt) {
+      if (matchMedia('(prefers-reduced-motion: reduce)').matches) { el.textContent = fmt(to); return; }
+      const t0 = performance.now(), dur = 700;
+      const step = now => {
+        const k = Math.min(1, (now - t0) / dur);
+        el.textContent = fmt(Math.round(to * (1 - Math.pow(1 - k, 3))));
+        if (k < 1) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    }
+
     function toggleTiersDetail() {
       tiersOpen = !tiersOpen;
-      renderSuivi(suiviCache);
+      renderSuivi(suiviCache, false);
     }
 
     function loadSuiviProtected() {
@@ -810,7 +860,8 @@
       }
     }
 
-    function renderSuivi(suivi) {
+    // animate = false : re-rendu sans rejouer les animations d'entrée (ouverture du détail tiers)
+    function renderSuivi(suivi, animate = true) {
       const list = document.getElementById('suivi-list');
       if (!suivi.length) { list.innerHTML = ''; return; }
 
@@ -823,10 +874,13 @@
       const totEl = document.getElementById('suivi-total');
       if (totEl) {
         totEl.classList.remove('hidden');
-        document.getElementById('total-contrats').textContent = totC;
-        document.getElementById('total-heures').textContent   = totH + 'h';
-        const totMFmt = totM > 0 ? fmtK(totM) : 'GRATUIT';
-        document.getElementById('total-montant').textContent  = totMFmt;
+        const setTot = (id, to, fmt) => {
+          const el = document.getElementById(id);
+          if (animate) countUp(el, to, fmt); else el.textContent = fmt(to);
+        };
+        setTot('total-contrats', totC, v => v);
+        setTot('total-heures',   totH, v => v + 'h');
+        setTot('total-montant',  totM, v => totM > 0 ? fmtK(v) : 'GRATUIT');
       }
 
       // Maxima pour les barres
@@ -849,7 +903,7 @@
             <span class="text-xs font-bold ${txtColor}">${txt}</span>
           </div>
           <div class="h-1 bg-neutral-800 rounded-full overflow-hidden">
-            <div class="${color} h-full rounded-full" style="width:${Math.round((val / max) * 100)}%"></div>
+            <div class="${color} ${animate ? 'bar-x' : ''} h-full rounded-full" style="width:${Math.round((val / max) * 100)}%"></div>
           </div>
         </div>`;
       const paieLine = (label, n) =>
@@ -887,7 +941,7 @@
               ${paieLine('Facture', p.facture)}
               ${paieLine('Feuille', p.feuille)}
             </div>`;
-        return `<div class="${isTiers ? 'col-span-2' : ''} rounded-2xl border ${border} bg-neutral-900 overflow-hidden">
+        return `<div class="${isTiers ? 'col-span-2' : ''} ${animate ? 'stagger' : ''} lift rounded-2xl border ${border} bg-neutral-900 overflow-hidden" style="--i:${i}">
           <div class="px-3 py-2.5 border-b border-neutral-800/60 flex items-center justify-between gap-2">
             <div class="flex items-center gap-2 min-w-0">
               <span class="w-1.5 h-1.5 rounded-full shrink-0 ${dot}"></span>
@@ -927,8 +981,10 @@
       prevEl.classList.toggle('hidden', !prev);
       if (prev) prevEl.textContent = `vs semaine précédente au même jour · total sem. préc. : ${prev.contrats} contrats · ${prev.heures}h · ${fmtK(prev.montant)}`;
 
-      const card = (dotColor, title, body) =>
-        `<div class="rounded-2xl border border-neutral-800 bg-neutral-900 overflow-hidden">
+      // clip = false : laisse dépasser les infobulles (carte « Par jour »)
+      let cardIdx = 0;
+      const card = (dotColor, title, body, clip = true) =>
+        `<div class="stagger lift rounded-2xl border border-neutral-800 bg-neutral-900 ${clip ? 'overflow-hidden' : ''}" style="--i:${cardIdx++}">
           <div class="px-4 py-2.5 border-b border-neutral-800/60 flex items-center gap-2">
             <span class="w-1.5 h-1.5 rounded-full ${dotColor}"></span>
             <span class="text-xs font-semibold text-neutral-300">${title}</span>
@@ -972,17 +1028,24 @@
       }
 
       if (data.jours) {
-        const maxJ = Math.max(...data.jours.map(j => j.contrats), 1);
+        const maxJ   = Math.max(...data.jours.map(j => j.contrats), 1);
+        const totJ   = data.jours.reduce((s, j) => s + j.contrats, 0);
+        const noms   = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
         html += `<div class="col-span-2">` + card('bg-sky-400', 'Par jour',
-          `<div class="px-3 py-3 grid grid-cols-7 gap-1.5">` + data.jours.map(j =>
-            `<div class="flex flex-col items-center gap-1 min-w-0">
+          `<div class="px-3 py-3 grid grid-cols-7 gap-1.5">` + data.jours.map((j, i) =>
+            `<div class="day-col flex flex-col items-center gap-1 min-w-0" tabindex="0">
               <span class="text-[10px] font-bold ${j.contrats ? 'text-neutral-200' : 'text-neutral-700'}">${j.contrats}</span>
               <div class="w-full h-16 bg-neutral-800 rounded-md overflow-hidden flex items-end">
-                <div class="w-full bg-sky-400 rounded-md" style="height:${Math.round((j.contrats / maxJ) * 100)}%"></div>
+                <div class="day-bar bar-y w-full bg-sky-400 rounded-md" style="height:${Math.round((j.contrats / maxJ) * 100)}%;animation-delay:${i * 50}ms"></div>
               </div>
               <span class="text-[10px] text-neutral-500 font-medium">${j.jour}</span>
               <span class="text-[9px] text-neutral-600 whitespace-nowrap">${j.montant ? fmtK(j.montant).replace(' $', '') : '—'}</span>
-            </div>`).join('') + `</div>`) + `</div>`;
+              <div class="day-tip ${i < 2 ? 'tip-l' : i > 4 ? 'tip-r' : ''} flex flex-col gap-0.5 text-[10px] text-neutral-400">
+                <span class="font-semibold text-sky-400">${noms[i] || j.jour}</span>
+                <span>${nb(j.contrats)}${totJ && j.contrats ? ` · ${Math.round(j.contrats / totJ * 100)} % de la semaine` : ''}</span>
+                <span class="font-semibold text-neutral-200">${Number(j.montant).toLocaleString('fr-FR')} $</span>
+              </div>
+            </div>`).join('') + `</div>`, false) + `</div>`;
       }
 
       box.innerHTML = html;
@@ -1014,11 +1077,11 @@
         const now    = new Date();
         const nowMin = now.getHours() * 60 + now.getMinutes();
 
-        list.innerHTML = data.contrats.map(c => {
+        list.innerHTML = data.contrats.map((c, i) => {
           const prix = Number(c.prix).toLocaleString('fr-FR') + ' $';
 
           if (tab === 'termines') {
-            return `<div class="px-4 py-3 flex flex-col gap-1">
+            return `<div class="stagger row-hover px-4 py-3 flex flex-col gap-1" style="--i:${i}">
               <div class="flex items-center justify-between">
                 <span class="text-sm font-bold text-neutral-100">${c.prenom} ${c.nom}</span>
                 <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-neutral-800 text-neutral-400 border border-neutral-700">TERMINÉ</span>
@@ -1048,7 +1111,7 @@
               : 'Terminé';
           }
 
-          return `<div class="px-4 py-3 flex flex-col gap-1">
+          return `<div class="stagger row-hover px-4 py-3 flex flex-col gap-1" style="--i:${i}">
             <div class="flex items-center justify-between">
               <span class="text-sm font-bold text-neutral-100">${c.prenom} ${c.nom}</span>
               <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">EN COURS</span>

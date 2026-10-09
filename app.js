@@ -1,5 +1,5 @@
 // ── Configuration ───────────────────────────────────────────────
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzPYP9mnK4ZXz6jJ1od7VqzJAhnXlaoUcL-lAAujx07aydA8zBeOIZoXkEEov2cV7nQLw/exec';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwZ-82k-7nM0PtkClYdBsj_WIidgpmdmjTZdB0r96rNPZO1HPmJyqGxXAgipxjqcjdCBw/exec';
 
 // ── État ─────────────────────────────────────────────────────────
 let state = { prenom: '', nom: '', matricule: '', duree: 0, tarif: 'normal', paiement: 'Facture', rid: newRid() };

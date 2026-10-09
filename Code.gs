@@ -57,7 +57,8 @@ function doGet(e) {
     }
 
     if (readAction === 'get_suivi') {
-      var suiviData = withCache('get_suivi', 30, function() { return getSuivi(); });
+      var semPrec   = p.semaine === 'prec';
+      var suiviData = withCache(semPrec ? 'get_suivi_prec' : 'get_suivi', 30, function() { return getSuivi(semPrec); });
       suiviData.success = true;
       var jsonS = JSON.stringify(suiviData);
       var cbS   = (p.callback || '').replace(/[^a-zA-Z0-9_]/g, '');
@@ -86,7 +87,25 @@ function doGet(e) {
       return jsonOk({ success: false, error: 'Champs obligatoires manquants' });
     }
 
-    enregistrer(prenom, nom, matricule, heureDebut, heureFin, temps, prixParam, paiement);
+    // Déduplication : un même rid (identifiant du contrat côté site) n'est écrit qu'une fois
+    var rid = (p.rid || '').replace(/[^a-zA-Z0-9]/g, '');
+    if (!rid) {
+      enregistrer(prenom, nom, matricule, heureDebut, heureFin, temps, prixParam, paiement);
+      return jsonOk({ success: true });
+    }
+
+    var lock = LockService.getScriptLock();
+    lock.waitLock(20000);
+    try {
+      var ridCache = CacheService.getScriptCache();
+      if (ridCache.get('rid_' + rid)) {
+        return jsonOk({ success: true, duplicate: true });
+      }
+      enregistrer(prenom, nom, matricule, heureDebut, heureFin, temps, prixParam, paiement);
+      ridCache.put('rid_' + rid, '1', 21600);
+    } finally {
+      lock.releaseLock();
+    }
 
     return jsonOk({ success: true });
   } catch (err) {
@@ -341,11 +360,16 @@ function estFeuilleContrats(sheet) {
   return enTete.indexOf('PRENOM') !== -1;
 }
 
-function getSuivi() {
+// semainePrec = true : stats de la semaine dernière (2e feuille) au lieu de la semaine en cours
+function getSuivi(semainePrec) {
   var ss     = SpreadsheetApp.getActiveSpreadsheet();
   var sheets = ss.getSheets();
   var tz     = ss.getSpreadsheetTimeZone();
-  var lignes = lireLignesSuivi(sheets[0], tz);
+
+  if (semainePrec && (sheets.length < 2 || !estFeuilleContrats(sheets[1]))) {
+    return { suivi: [], tiers: [], precedent: null };
+  }
+  var lignes = lireLignesSuivi(sheets[semainePrec ? 1 : 0], tz);
 
   var suivis       = PERSONNES_SUIVIES.map(function(m) { return nouvelAgregat(m); });
   var suiviesUpper = PERSONNES_SUIVIES.map(function(m) { return m.toUpperCase(); });
@@ -390,7 +414,7 @@ function getSuivi() {
   // Semaine précédente = 2e feuille (l'ancienne, après la rotation du dimanche)
   // aDate = cumul jusqu'au même jour de la semaine, pour comparer à périmètre égal
   var precedent = null;
-  if (sheets.length > 1 && estFeuilleContrats(sheets[1])) {
+  if (!semainePrec && sheets.length > 1 && estFeuilleContrats(sheets[1])) {
     var auj = jourSemaine(new Date(), tz);
     precedent = { contrats: 0, heures: 0, montant: 0, aDate: { contrats: 0, heures: 0, montant: 0 } };
     lireLignesSuivi(sheets[1], tz).forEach(function(l) {

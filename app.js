@@ -2,7 +2,12 @@
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzPYP9mnK4ZXz6jJ1od7VqzJAhnXlaoUcL-lAAujx07aydA8zBeOIZoXkEEov2cV7nQLw/exec';
 
 // ── État ─────────────────────────────────────────────────────────
-let state = { prenom: '', nom: '', matricule: '', duree: 0, tarif: 'normal', paiement: 'Facture' };
+let state = { prenom: '', nom: '', matricule: '', duree: 0, tarif: 'normal', paiement: 'Facture', rid: newRid() };
+
+// Identifiant unique du contrat : conservé d'un essai à l'autre pour la déduplication côté Apps Script
+function newRid() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
 
 // ── Navigation ───────────────────────────────────────────────────
 function showScreen(id) {
@@ -21,7 +26,7 @@ function startContract() {
   document.getElementById('prenom-input').value = '';
   document.getElementById('nom-input').value = '';
   document.getElementById('matricule-input').value = '';
-  state = { prenom: '', nom: '', matricule: '', duree: 0, tarif: 'normal', paiement: 'Facture' };
+  state = { prenom: '', nom: '', matricule: '', duree: 0, tarif: 'normal', paiement: 'Facture', rid: newRid() };
   syncTarifUI();
   syncPaiementUI();
   showScreen('screen-identite');
@@ -94,9 +99,6 @@ async function sendToSheets() {
     return;
   }
 
-  // Identifiant unique pour déduplication côté Apps Script
-  const rid = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-
   const params = new URLSearchParams({
     prenom:      state.prenom,
     nom:         state.nom,
@@ -107,7 +109,7 @@ async function sendToSheets() {
     prix,
     paiement:    state.paiement,
     statut:      'Fin',
-    rid,
+    rid:         state.rid,
   });
 
   const fullUrl    = `${APPS_SCRIPT_URL}?${params.toString()}`;

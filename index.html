@@ -263,6 +263,18 @@
         <p id="suivi-subtitle" class="text-xs text-neutral-500 mt-0.5">—</p>
       </div>
 
+      <!-- Choix de la semaine -->
+      <div class="flex rounded-xl bg-neutral-900 border border-neutral-800 p-1 gap-1">
+        <button id="sem-courante" onclick="setSuiviSemaine('courante')"
+          class="flex-1 rounded-lg py-2 text-xs font-semibold transition-all duration-150 bg-neutral-800 text-neutral-100">
+          Cette semaine
+        </button>
+        <button id="sem-prec" onclick="setSuiviSemaine('prec')"
+          class="flex-1 rounded-lg py-2 text-xs font-semibold transition-all duration-150 text-neutral-500 hover:text-neutral-300">
+          Semaine dernière
+        </button>
+      </div>
+
       <!-- Deux colonnes sur grand écran : résumé à gauche, personnes à droite -->
       <div class="flex flex-col md:grid md:grid-cols-2 md:items-start gap-3">
       <div class="flex flex-col gap-3">
@@ -682,6 +694,24 @@
     let suiviCache    = [];
     let suiviTiers    = [];   // détail par matricule des personnes tiers
     let tiersOpen     = false;
+    let suiviSemaine  = 'courante'; // 'courante' ou 'prec' (semaine dernière)
+
+    function setSuiviSemaine(sem) {
+      if (suiviSemaine === sem) return;
+      suiviSemaine = sem;
+      tiersOpen    = false;
+      syncSuiviSemaineUI();
+      fetchSuivi();
+    }
+
+    function syncSuiviSemaineUI() {
+      ['courante', 'prec'].forEach(s => {
+        const btn    = document.getElementById('sem-' + s);
+        const active = suiviSemaine === s;
+        ['bg-neutral-800', 'text-neutral-100'].forEach(c => btn.classList.toggle(c, active));
+        ['text-neutral-500', 'hover:text-neutral-300'].forEach(c => btn.classList.toggle(c, !active));
+      });
+    }
 
     function esc(s) {
       return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
@@ -725,6 +755,7 @@
     function loadSuivi() {
       showScreen('screen-suivi');
       syncSuiviSortUI();
+      syncSuiviSemaineUI();
       fetchSuivi();
     }
 
@@ -751,10 +782,21 @@
     async function fetchSuivi() {
       const list = document.getElementById('suivi-list');
       list.innerHTML = '<p class="text-xs text-neutral-600 text-center py-6">Chargement…</p>';
+      const sem = suiviSemaine;
       try {
-        const data = await jsonpCached(APPS_SCRIPT_URL + '?action=get_suivi', 30000);
+        const data = await jsonpCached(APPS_SCRIPT_URL + '?action=get_suivi' + (sem === 'prec' ? '&semaine=prec' : ''), 30000);
+        if (sem !== suiviSemaine) return; // semaine changée pendant le chargement
         if (!data.success || !data.suivi || !data.suivi.length) {
-          list.innerHTML = '<p class="text-xs text-neutral-600 text-center py-6">Aucune donnée disponible</p>';
+          // Efface les chiffres de l'autre semaine restés à l'écran
+          suiviCache = [];
+          suiviTiers = [];
+          document.getElementById('suivi-subtitle').textContent = '—';
+          document.getElementById('suivi-total').classList.add('hidden');
+          const box = document.getElementById('suivi-extras');
+          box.classList.add('hidden');
+          box.classList.remove('grid');
+          const msg = sem === 'prec' ? 'Aucune semaine précédente' : 'Aucune donnée disponible';
+          list.innerHTML = `<p class="text-xs text-neutral-600 text-center py-6">${msg}</p>`;
           return;
         }
         suiviCache = data.suivi;
@@ -762,6 +804,7 @@
         renderSuivi(suiviCache);
         renderSuiviExtras(data);
       } catch(e) {
+        if (sem !== suiviSemaine) return;
         list.innerHTML = '<p class="text-xs text-red-400 text-center py-6">Erreur de connexion</p>';
         console.error('[CHAMP suivi]', e);
       }

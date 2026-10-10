@@ -257,7 +257,7 @@
         </div>
         <div>
           <h2 class="text-sm font-semibold">Accès restreint</h2>
-          <p id="suivi-lock-sub" class="text-xs text-neutral-500">Suivi semaine</p>
+          <p class="text-xs text-neutral-500">Suivi semaine</p>
         </div>
       </div>
       <div class="flex flex-col gap-2">
@@ -782,40 +782,31 @@
       renderSuivi(suiviCache, false);
     }
 
-    // Exécute fn tout de suite si déjà déverrouillé, sinon après saisie du mot de passe
-    let afterUnlock = null;
-    function requireUnlock(label, fn) {
-      if (suiviUnlocked) { fn(); return; }
-      afterUnlock = fn;
-      document.getElementById('suivi-lock-sub').textContent = label;
+    function loadSuiviProtected() {
+      if (suiviUnlocked) { loadSuivi(); return; }
       showScreen('screen-suivi-lock');
       setTimeout(() => document.getElementById('suivi-pwd-input').focus(), 100);
     }
 
-    function loadSuiviProtected() { requireUnlock('Suivi semaine', loadSuivi); }
-
     // ── Pause / reprise d'un contrat ─────────────────────────────
-    function togglePause(rid, pause) {
-      requireUnlock(pause ? 'Mettre un contrat en pause' : 'Reprendre un contrat', async () => {
-        showScreen('screen-contrats');
-        const errEl = document.getElementById('contrats-error');
-        errEl.classList.add('hidden');
-        showSpinner(true, pause ? 'Mise en pause…' : 'Reprise…');
-        try {
-          const data = await jsonp(APPS_SCRIPT_URL + '?action=' + (pause ? 'pause' : 'reprendre') + '&rid=' + encodeURIComponent(rid));
-          if (!data.success) {
-            errEl.textContent = data.error || 'Action impossible';
-            errEl.classList.remove('hidden');
-          }
-        } catch (e) {
-          errEl.textContent = 'Erreur de connexion';
+    async function togglePause(rid, pause) {
+      const errEl = document.getElementById('contrats-error');
+      errEl.classList.add('hidden');
+      showSpinner(true, pause ? 'Mise en pause…' : 'Reprise…');
+      try {
+        const data = await jsonp(APPS_SCRIPT_URL + '?action=' + (pause ? 'pause' : 'reprendre') + '&rid=' + encodeURIComponent(rid));
+        if (!data.success) {
+          errEl.textContent = data.error || 'Action impossible';
           errEl.classList.remove('hidden');
-          console.error('[CHAMP pause]', e);
         }
-        showSpinner(false);
-        invalidateFrontendCache();
-        fetchContrats('encours');
-      });
+      } catch (e) {
+        errEl.textContent = 'Erreur de connexion';
+        errEl.classList.remove('hidden');
+        console.error('[CHAMP pause]', e);
+      }
+      showSpinner(false);
+      invalidateFrontendCache();
+      fetchContrats('encours');
     }
 
     async function checkSuiviPassword() {
@@ -827,9 +818,7 @@
         suiviUnlocked = true;
         document.getElementById('suivi-pwd-input').value = '';
         err.classList.add('hidden');
-        const next = afterUnlock || loadSuivi;
-        afterUnlock = null;
-        next();
+        loadSuivi();
       } else {
         err.classList.remove('hidden');
         document.getElementById('suivi-pwd-input').value = '';

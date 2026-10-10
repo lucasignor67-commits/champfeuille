@@ -3,6 +3,7 @@
 //  Colonnes :
 //    A  DATE       B  PRENOM    C  NOM       D  Matricule
 //    E  HEURE DEBUT  F  HEURE FIN  G  Temps  H  PRIX  I  STATUT
+//    J  PAIEMENT   K  PAUSE (heure de mise en pause)   L  ID (rid du contrat)
 // ===============================================================
 
 // Personnes dont les stats sont affichées dans l'écran Suivi semaine
@@ -66,6 +67,21 @@ function doGet(e) {
       return ContentService.createTextOutput(jsonS).setMimeType(ContentService.MimeType.JSON);
     }
 
+    // ── Pause / reprise d'un contrat (JSONP pour que le site lise le résultat) ──
+    if (readAction === 'pause' || readAction === 'reprendre') {
+      var resP;
+      try {
+        resP = changerPause((p.rid || '').replace(/[^a-zA-Z0-9]/g, ''), readAction === 'pause');
+      } catch (errP) {
+        Logger.log('pause erreur : ' + errP.message);
+        resP = { success: false, error: errP.message };
+      }
+      var jsonP = JSON.stringify(resP);
+      var cbP   = (p.callback || '').replace(/[^a-zA-Z0-9_]/g, '');
+      if (cbP) return ContentService.createTextOutput(cbP + '(' + jsonP + ')').setMimeType(ContentService.MimeType.JAVASCRIPT);
+      return ContentService.createTextOutput(jsonP).setMimeType(ContentService.MimeType.JSON);
+    }
+
     if (readAction === 'get_mamie_stats') {
       var statsData = withCache('get_mamie_stats', 30, function() { return { stats: getMamieStats() }; });
       var jsonM = JSON.stringify({ success: true, stats: statsData.stats });
@@ -90,7 +106,7 @@ function doGet(e) {
     // Déduplication : un même rid (identifiant du contrat côté site) n'est écrit qu'une fois
     var rid = (p.rid || '').replace(/[^a-zA-Z0-9]/g, '');
     if (!rid) {
-      enregistrer(prenom, nom, matricule, heureDebut, heureFin, temps, prixParam, paiement);
+      enregistrer(prenom, nom, matricule, heureDebut, heureFin, temps, prixParam, paiement, '');
       return jsonOk({ success: true });
     }
 
@@ -101,7 +117,7 @@ function doGet(e) {
       if (ridCache.get('rid_' + rid)) {
         return jsonOk({ success: true, duplicate: true });
       }
-      enregistrer(prenom, nom, matricule, heureDebut, heureFin, temps, prixParam, paiement);
+      enregistrer(prenom, nom, matricule, heureDebut, heureFin, temps, prixParam, paiement, rid);
       ridCache.put('rid_' + rid, '1', 21600);
     } finally {
       lock.releaseLock();
@@ -151,7 +167,8 @@ function getContratsData() {
   for (var i = 1; i < data.length; i++) {
     var row = data[i];
     if (!row[1] || row[1] === '') continue;
-    if (String(row[8]).trim().toUpperCase() !== 'EN COURS') continue;
+    var statut = String(row[8]).trim().toUpperCase();
+    if (statut !== 'EN COURS' && statut !== 'EN PAUSE') continue;
     contrats.push({
       prenom:      String(row[1]),
       nom:         String(row[2]),
@@ -160,7 +177,10 @@ function getContratsData() {
       heure_fin:   String(row[5]),
       temps:       String(row[6]),
       prix:        row[7],
-      paiement:    String(row[9] || 'Facture')
+      paiement:    String(row[9] || 'Facture'),
+      statut:      statut,
+      pause:       String(row[10] || ''),
+      rid:         String(row[11] || '')
     });
   }
   return contrats;
@@ -169,7 +189,7 @@ function getContratsData() {
 // ---------------------------------------------------------------
 //  ECRITURE
 // ---------------------------------------------------------------
-function enregistrer(prenom, nom, matricule, heureDebut, heureFin, temps, prixFrontend, paiement) {
+function enregistrer(prenom, nom, matricule, heureDebut, heureFin, temps, prixFrontend, paiement, rid) {
   // prixFrontend = -1 signifie "non fourni" (fallback calcul), 0 = gratuit intentionnel
   var ss    = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheets()[0];
@@ -184,18 +204,87 @@ function enregistrer(prenom, nom, matricule, heureDebut, heureFin, temps, prixFr
   if (!sheet.getRange(1, 10).getValue()) {
     sheet.getRange(1, 10).setValue('PAIEMENT');
   }
+  // Ajoute les entêtes colonnes K et L si absents
+  if (!sheet.getRange(1, 11).getValue()) {
+    sheet.getRange(1, 11, 1, 2).setValues([['PAUSE', 'ID']]);
+  }
 
   // getLastRow() = O(1) au lieu de scanner toute la colonne B
   var newRow = Math.max(sheet.getLastRow() + 1, 2);
 
   // Écriture en 1 seul appel (10x moins de round-trips)
-  sheet.getRange(newRow, 1, 1, 10).setValues([[
-    date, prenom, nom, matricule, heureDebut, heureFin, temps, prix, 'EN COURS', modePaie
+  sheet.getRange(newRow, 1, 1, 12).setValues([[
+    date, prenom, nom, matricule, heureDebut, heureFin, temps, prix, 'EN COURS', modePaie, '', rid || ''
   ]]);
   SpreadsheetApp.flush();
 
   // Invalide les caches de lecture immédiatement
   invalidateReadCaches();
+}
+
+// ---------------------------------------------------------------
+//  PAUSE / REPRISE D'UN CONTRAT
+//  Pause   : statut EN PAUSE + heure de mise en pause en colonne K
+//  Reprise : HEURE FIN décalée de la durée de la pause, statut EN COURS
+// ---------------------------------------------------------------
+function parseHM(v) {
+  var s   = String(v === null || v === undefined ? '' : v).toLowerCase().trim();
+  var sep = s.indexOf('h');
+  if (sep === -1) return -1;
+  var h = parseInt(s.substring(0, sep), 10);
+  var m = parseInt(s.substring(sep + 1), 10);
+  if (isNaN(h)) return -1;
+  return h * 60 + (isNaN(m) ? 0 : m);
+}
+
+function formatHM(min) {
+  var h = Math.floor(min / 60), m = min % 60;
+  return (h < 10 ? '0' : '') + h + 'h' + (m < 10 ? '0' : '') + m;
+}
+
+function changerPause(rid, mettreEnPause) {
+  if (!rid) return { success: false, error: 'Contrat sans identifiant' };
+
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var sheet  = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
+    var data   = sheet.getDataRange().getValues();
+    var now    = new Date();
+    var nowMin = now.getHours() * 60 + now.getMinutes();
+
+    for (var i = 1; i < data.length; i++) {
+      if (String(data[i][11] || '') !== rid) continue;
+      var statut = String(data[i][8]).trim().toUpperCase();
+
+      if (mettreEnPause) {
+        if (statut !== 'EN COURS') return { success: false, error: 'Ce contrat n\'est pas en cours' };
+        try {
+          sheet.getRange(i + 1, 9).setValue('EN PAUSE');
+        } catch (errVal) {
+          return { success: false, error: 'Ajouter « EN PAUSE » à la validation de la colonne I' };
+        }
+        sheet.getRange(i + 1, 11).setValue(formatHM(nowMin));
+      } else {
+        if (statut !== 'EN PAUSE') return { success: false, error: 'Ce contrat n\'est pas en pause' };
+        var debutPause = parseHM(data[i][10]);
+        var finMin     = parseHM(data[i][5]);
+        if (debutPause >= 0 && finMin >= 0) {
+          var ecart = (nowMin - debutPause + 1440) % 1440;
+          sheet.getRange(i + 1, 6).setValue(formatHM((finMin + ecart) % 1440));
+        }
+        sheet.getRange(i + 1, 9).setValue('EN COURS');
+        sheet.getRange(i + 1, 11).setValue('');
+      }
+
+      SpreadsheetApp.flush();
+      invalidateReadCaches();
+      return { success: true };
+    }
+    return { success: false, error: 'Contrat introuvable' };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 // ---------------------------------------------------------------

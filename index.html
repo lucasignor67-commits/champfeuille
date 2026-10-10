@@ -218,6 +218,8 @@
         </button>
       </div>
 
+      <p id="contrats-error" class="hidden rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2.5 text-xs text-red-400"></p>
+
       <!-- Liste -->
       <div class="rounded-2xl border border-neutral-800 bg-neutral-900 overflow-hidden">
         <div id="contrats-list" class="divide-y divide-neutral-800/60 overflow-y-auto max-h-[55vh]" style="-webkit-overflow-scrolling:touch">
@@ -255,7 +257,7 @@
         </div>
         <div>
           <h2 class="text-sm font-semibold">Accès restreint</h2>
-          <p class="text-xs text-neutral-500">Suivi semaine</p>
+          <p id="suivi-lock-sub" class="text-xs text-neutral-500">Suivi semaine</p>
         </div>
       </div>
       <div class="flex flex-col gap-2">
@@ -715,6 +717,7 @@
     async function loadContrats() {
       currentTab = 'encours';
       showScreen('screen-contrats');
+      document.getElementById('contrats-error').classList.add('hidden');
       fetchMamieStats();
       // reset tabs visuellement
       document.getElementById('tab-encours').className  = document.getElementById('tab-encours').className.replace('text-neutral-500 hover:text-neutral-300','bg-neutral-800 text-neutral-100');
@@ -779,10 +782,40 @@
       renderSuivi(suiviCache, false);
     }
 
-    function loadSuiviProtected() {
-      if (suiviUnlocked) { loadSuivi(); return; }
+    // Exécute fn tout de suite si déjà déverrouillé, sinon après saisie du mot de passe
+    let afterUnlock = null;
+    function requireUnlock(label, fn) {
+      if (suiviUnlocked) { fn(); return; }
+      afterUnlock = fn;
+      document.getElementById('suivi-lock-sub').textContent = label;
       showScreen('screen-suivi-lock');
       setTimeout(() => document.getElementById('suivi-pwd-input').focus(), 100);
+    }
+
+    function loadSuiviProtected() { requireUnlock('Suivi semaine', loadSuivi); }
+
+    // ── Pause / reprise d'un contrat ─────────────────────────────
+    function togglePause(rid, pause) {
+      requireUnlock(pause ? 'Mettre un contrat en pause' : 'Reprendre un contrat', async () => {
+        showScreen('screen-contrats');
+        const errEl = document.getElementById('contrats-error');
+        errEl.classList.add('hidden');
+        showSpinner(true, pause ? 'Mise en pause…' : 'Reprise…');
+        try {
+          const data = await jsonp(APPS_SCRIPT_URL + '?action=' + (pause ? 'pause' : 'reprendre') + '&rid=' + encodeURIComponent(rid));
+          if (!data.success) {
+            errEl.textContent = data.error || 'Action impossible';
+            errEl.classList.remove('hidden');
+          }
+        } catch (e) {
+          errEl.textContent = 'Erreur de connexion';
+          errEl.classList.remove('hidden');
+          console.error('[CHAMP pause]', e);
+        }
+        showSpinner(false);
+        invalidateFrontendCache();
+        fetchContrats('encours');
+      });
     }
 
     async function checkSuiviPassword() {
@@ -794,7 +827,9 @@
         suiviUnlocked = true;
         document.getElementById('suivi-pwd-input').value = '';
         err.classList.add('hidden');
-        loadSuivi();
+        const next = afterUnlock || loadSuivi;
+        afterUnlock = null;
+        next();
       } else {
         err.classList.remove('hidden');
         document.getElementById('suivi-pwd-input').value = '';
@@ -1098,23 +1133,39 @@
           }
 
           // En cours : temps restant
+          // En pause : le temps restant est figé à l'heure de mise en pause
+          const enPause = c.statut === 'EN PAUSE';
+          const hmToMin = v => {
+            const s = String(v).toLowerCase(), sep = s.indexOf('h');
+            return sep === -1 ? -1 : (parseInt(s.substring(0, sep)) || 0) * 60 + (parseInt(s.substring(sep + 1)) || 0);
+          };
           let restant = '';
-          const sep = String(c.heure_fin).toLowerCase().indexOf('h');
-          if (sep !== -1) {
-            const h    = parseInt(c.heure_fin.substring(0, sep)) || 0;
-            const m    = parseInt(c.heure_fin.substring(sep + 1)) || 0;
-            const finM = h * 60 + m;
-            let diff   = finM - nowMin;
+          const finM = hmToMin(c.heure_fin);
+          const refM = enPause ? hmToMin(c.pause) : nowMin;
+          if (finM !== -1 && refM !== -1) {
+            let diff   = finM - refM;
             if (diff < 0) diff += 1440;
             restant = diff > 0
               ? (diff >= 60 ? Math.floor(diff/60) + 'h' + String(diff%60).padStart(2,'0') : diff + ' min') + ' restant'
               : 'Terminé';
           }
+          if (enPause) restant = 'En pause depuis ' + esc(c.pause) + (restant ? ' · ' + restant : '');
+
+          const badge = enPause
+            ? '<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">EN PAUSE</span>'
+            : '<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">EN COURS</span>';
+          // Les contrats sans identifiant (saisis avant l'ajout de la pause) n'ont pas de bouton
+          const pauseBtn = c.rid
+            ? `<button onclick="togglePause('${esc(c.rid)}', ${!enPause})"
+                 class="rounded-lg border border-neutral-800 hover:border-amber-500/40 hover:bg-amber-500/5 text-neutral-400 hover:text-amber-400 text-[10px] font-semibold px-2.5 py-1 transition-all duration-150 active:scale-[.96]">
+                 ${enPause ? '▶ Reprendre' : '❚❚ Pause'}
+               </button>`
+            : '';
 
           return `<div class="stagger row-hover px-4 py-3 flex flex-col gap-1" style="--i:${i}">
             <div class="flex items-center justify-between">
               <span class="text-sm font-bold text-neutral-100">${c.prenom} ${c.nom}</span>
-              <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">EN COURS</span>
+              ${badge}
             </div>
             <div class="flex items-center gap-3 text-[11px] text-neutral-500 flex-wrap">
               <span>Mat. <span class="text-neutral-300 font-medium">${c.matricule}</span></span>
@@ -1123,7 +1174,10 @@
               <span>·</span>
               <span class="text-neutral-400">${prix}</span>
             </div>
-            <div class="text-[10px] font-semibold ${restant === 'Terminé' ? 'text-red-400' : 'text-amber-400'}">${restant}</div>
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-[10px] font-semibold ${restant === 'Terminé' ? 'text-red-400' : 'text-amber-400'}">${restant}</span>
+              ${pauseBtn}
+            </div>
           </div>`;
         }).join('');
 

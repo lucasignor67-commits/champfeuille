@@ -7,7 +7,10 @@
 // ===============================================================
 
 // Personnes dont les stats sont affichées dans l'écran Suivi semaine
-var PERSONNES_SUIVIES = ['MAMIE', 'LOUGACE'];
+var PERSONNES_SUIVIES = ['MAMIE', 'IBRAHIM', 'LOUGACE'];
+
+// Personnes dont les compteurs jour / semaine sont affichés sous les contrats en cours
+var PERSONNES_COMPTEURS = ['MAMIE'];
 
 // ---------------------------------------------------------------
 //  CACHE HELPER  (TTL en secondes, max 21600 = 6h)
@@ -83,8 +86,9 @@ function doGet(e) {
     }
 
     if (readAction === 'get_mamie_stats') {
-      var statsData = withCache('get_mamie_stats', 30, function() { return { stats: getMamieStats() }; });
-      var jsonM = JSON.stringify({ success: true, stats: statsData.stats });
+      var statsData = withCache('get_mamie_stats', 30, function() { return { compteurs: getCompteurs() }; });
+      // stats = MAMIE seule, gardé pour les anciennes versions du site
+      var jsonM = JSON.stringify({ success: true, stats: statsData.compteurs.MAMIE, compteurs: statsData.compteurs });
       var cbM   = (p.callback || '').replace(/[^a-zA-Z0-9_]/g, '');
       if (cbM) return ContentService.createTextOutput(cbM + '(' + jsonM + ')').setMimeType(ContentService.MimeType.JAVASCRIPT);
       return ContentService.createTextOutput(jsonM).setMimeType(ContentService.MimeType.JSON);
@@ -530,26 +534,31 @@ function getSuivi(semainePrec) {
 }
 
 // ---------------------------------------------------------------
-//  STATS MAMIE
+//  COMPTEURS JOUR / SEMAINE (personnes de PERSONNES_COMPTEURS)
+//  Renvoie { MAMIE: { total, today }, … }
 // ---------------------------------------------------------------
-function getMamieStats() {
+function getCompteurs() {
   var ss    = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheets()[0];
   var data  = sheet.getDataRange().getValues();
   var tz    = Session.getScriptTimeZone();
   var today = Utilities.formatDate(new Date(), tz, 'dd/MM/yyyy');
-  var total = 0, todayCount = 0;
+
+  var compteurs = {};
+  PERSONNES_COMPTEURS.forEach(function(m) { compteurs[m] = { total: 0, today: 0 }; });
+
   for (var i = 1; i < data.length; i++) {
     var row = data[i];
     if (!row[1] || row[1] === '') continue;
-    if (String(row[3]).trim().toUpperCase() !== 'MAMIE') continue;
-    total++;
+    var c = compteurs[String(row[3]).trim().toUpperCase()];
+    if (!c) continue;
+    c.total++;
     try {
       var rowDate = Utilities.formatDate(new Date(row[0]), tz, 'dd/MM/yyyy');
-      if (rowDate === today) todayCount++;
+      if (rowDate === today) c.today++;
     } catch(e) {}
   }
-  return { total: total, today: todayCount };
+  return compteurs;
 }
 
 // ---------------------------------------------------------------

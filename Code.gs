@@ -7,7 +7,7 @@
 // ===============================================================
 
 // Personnes dont les stats sont affichées dans l'écran Suivi semaine
-var PERSONNES_SUIVIES = ['MAMIE', 'IBRAHIM', 'LOUGACE'];
+var PERSONNES_SUIVIES = ['MAMIE', 'IBRAHIM', 'SIENNA'];
 
 // Personnes dont les compteurs jour / semaine sont affichés sous les contrats en cours
 var PERSONNES_COMPTEURS = ['MAMIE'];

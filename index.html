@@ -89,7 +89,21 @@
     .day-col:hover .day-bar, .day-col:focus .day-bar { filter: brightness(1.25); }
     .day-col:hover .day-tip, .day-col:focus .day-tip { opacity: 1; transform: translate(var(--tx, -50%), -6px) scale(1); }
 
+    /* ── Digicode ── */
+    .pin-dot { width: .8rem; height: .8rem; border-radius: 9999px; border: 1.5px solid #525252;
+               transition: background-color .15s ease, border-color .15s ease, transform .15s ease; }
+    .pin-dot.filled { background: #22c55e; border-color: #22c55e; transform: scale(1.15); }
+    .pin-wrong { animation: pinShake .4s ease; }
+    .pin-wrong .pin-dot { background: #f87171; border-color: #f87171; }
+    @keyframes pinShake { 20%, 60% { transform: translateX(-8px); } 40%, 80% { transform: translateX(8px); } }
+    .pin-key { height: 3.5rem; border-radius: .75rem; border: 1px solid #262626; background: #171717;
+               color: #f5f5f5; font-size: 1.25rem; font-weight: 600;
+               transition: background-color .15s ease, transform .1s ease; }
+    .pin-key:active { transform: scale(.94); background: #262626; }
+    @media (hover: hover) { .pin-key:hover { background: #222; } }
+
     @media (prefers-reduced-motion: reduce) {
+      .pin-wrong { animation: none; }
       .stagger, .bar-x, .bar-y { animation: none; }
       .lift, .day-col, .day-tip { transition: none; }
     }
@@ -99,6 +113,37 @@
 <body class="min-h-dvh bg-[#080808] text-[#ededed] flex items-center justify-center p-5 antialiased">
 
   <audio id="bg-audio" src="Cayo%20Domine%20(1).mp3" loop></audio>
+
+  <!-- ── DIGICODE (affiché par défaut, masqué une fois le bon code saisi) ── -->
+  <div id="pin-gate" class="fixed inset-0 z-[60] bg-[#080808] flex items-center justify-center p-5">
+    <div class="w-full max-w-[17rem] flex flex-col items-center gap-6 animate-fadeUp">
+      <div class="flex flex-col items-center gap-3">
+        <img src="pant.png" alt="" class="w-14 h-14 object-contain select-none" style="filter:invert(1)" draggable="false" />
+        <div class="text-center">
+          <h2 class="text-sm font-semibold text-neutral-100">Code d'accès</h2>
+          <p class="text-xs text-neutral-500 mt-0.5">Entrez le code à 4 chiffres</p>
+        </div>
+      </div>
+      <div id="pin-dots" class="flex gap-4">
+        <span class="pin-dot"></span><span class="pin-dot"></span><span class="pin-dot"></span><span class="pin-dot"></span>
+      </div>
+      <p id="pin-error" class="text-xs text-red-400 h-4 -my-2 text-center"></p>
+      <div class="grid grid-cols-3 gap-3 w-full select-none">
+        <button type="button" class="pin-key" onclick="pinPress('1')">1</button>
+        <button type="button" class="pin-key" onclick="pinPress('2')">2</button>
+        <button type="button" class="pin-key" onclick="pinPress('3')">3</button>
+        <button type="button" class="pin-key" onclick="pinPress('4')">4</button>
+        <button type="button" class="pin-key" onclick="pinPress('5')">5</button>
+        <button type="button" class="pin-key" onclick="pinPress('6')">6</button>
+        <button type="button" class="pin-key" onclick="pinPress('7')">7</button>
+        <button type="button" class="pin-key" onclick="pinPress('8')">8</button>
+        <button type="button" class="pin-key" onclick="pinPress('9')">9</button>
+        <span></span>
+        <button type="button" class="pin-key" onclick="pinPress('0')">0</button>
+        <button type="button" class="pin-key text-base" onclick="pinPress('del')" aria-label="Effacer">⌫</button>
+      </div>
+    </div>
+  </div>
 
   <!-- ── ACCUEIL ── -->
   <div id="screen-home" class="screen active">
@@ -673,9 +718,13 @@
         const s   = document.createElement('script');
         const tid = setTimeout(() => { cleanup(); reject(new Error('Timeout')); }, 10000);
         function cleanup() { clearTimeout(tid); delete window[cb]; if (s.parentNode) s.remove(); }
-        window[cb] = (data) => { cleanup(); resolve(data); };
+        window[cb] = (data) => {
+          cleanup();
+          if (data && data.pinInvalide) lockSite('Code refusé, entrez le code à nouveau');
+          resolve(data);
+        };
         s.onerror  = () => { cleanup(); reject(new Error('Script error')); };
-        s.src = url + '&callback=' + cb;
+        s.src = url + '&pin=' + encodeURIComponent(accessPin) + '&callback=' + cb;
         document.head.appendChild(s);
       });
     }

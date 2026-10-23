@@ -1,6 +1,70 @@
 // ── Configuration ───────────────────────────────────────────────
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxHw9x9NaxuQp3x1B4A7_vY2QuEvkh6wMUeeZdq8TKof16CFKInt_RUEXrG931qALyYXQ/exec';
 
+// ── Code d'accès ─────────────────────────────────────────────────
+// SHA-256 du code PIN (ne pas stocker le code en clair). Le vrai contrôle est fait
+// par Apps Script à chaque requête : changer aussi PIN_ACCES dans Code.gs
+const ACCESS_PIN_HASH = '514c9ae59f601e841cb9fa4bf8562c0696ece53bdfe44af88f1967d5ec9cf6b0';
+let accessPin = '';  // code validé, envoyé avec chaque requête
+let pinSaisie = '';
+let pinBusy   = false;
+
+async function sha256Hex(s) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function syncPinDots() {
+  document.querySelectorAll('#pin-dots .pin-dot').forEach((d, i) =>
+    d.classList.toggle('filled', i < pinSaisie.length));
+}
+
+function pinPress(k) {
+  if (pinBusy) return;
+  if (k === 'del') pinSaisie = pinSaisie.slice(0, -1);
+  else if (pinSaisie.length < 4) pinSaisie += k;
+  document.getElementById('pin-error').textContent = '';
+  syncPinDots();
+  if (pinSaisie.length === 4) checkPin();
+}
+
+async function checkPin() {
+  pinBusy = true;
+  if (await sha256Hex(pinSaisie) === ACCESS_PIN_HASH) {
+    unlockSite(pinSaisie);
+    return;
+  }
+  const dots = document.getElementById('pin-dots');
+  dots.classList.add('pin-wrong');
+  document.getElementById('pin-error').textContent = 'Code incorrect';
+  setTimeout(() => {
+    dots.classList.remove('pin-wrong');
+    pinSaisie = '';
+    syncPinDots();
+    pinBusy = false;
+  }, 500);
+}
+
+function unlockSite(pin) {
+  accessPin = pin;
+  pinSaisie = '';
+  pinBusy   = false;
+  try { sessionStorage.setItem('champ_pin', pin); } catch (e) {}
+  syncPinDots();
+  document.getElementById('pin-gate').classList.add('hidden');
+}
+
+// Réaffiche le digicode (code refusé par le serveur, par ex. après un changement de code)
+function lockSite(msg) {
+  accessPin = '';
+  pinSaisie = '';
+  pinBusy   = false;
+  try { sessionStorage.removeItem('champ_pin'); } catch (e) {}
+  syncPinDots();
+  document.getElementById('pin-error').textContent = msg || '';
+  document.getElementById('pin-gate').classList.remove('hidden');
+}
+
 // ── État ─────────────────────────────────────────────────────────
 let state = { prenom: '', nom: '', matricule: '', duree: 0, tarif: 'normal', paiement: 'Facture', rid: newRid() };
 
@@ -110,6 +174,7 @@ async function sendToSheets() {
     paiement:    state.paiement,
     statut:      'Fin',
     rid:         state.rid,
+    pin:         accessPin,
   });
 
   const fullUrl    = `${APPS_SCRIPT_URL}?${params.toString()}`;
@@ -273,6 +338,20 @@ function capitalize(s) {
 
 // ── Touches Entrée ───────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+  // Code déjà saisi dans cet onglet : pas besoin de le redemander
+  let saved = '';
+  try { saved = sessionStorage.getItem('champ_pin') || ''; } catch (e) {}
+  if (saved) sha256Hex(saved).then(h => { if (h === ACCESS_PIN_HASH) unlockSite(saved); }).catch(() => {});
+
+  // Clavier physique sur le digicode
+  document.addEventListener('keydown', e => {
+    if (document.getElementById('pin-gate').classList.contains('hidden')) return;
+    if (/^[0-9]$/.test(e.key)) pinPress(e.key);
+    else if (e.key === 'Backspace') pinPress('del');
+    else return;
+    e.preventDefault();
+  });
+
   document.getElementById('nom-input').addEventListener('keydown', e => {
     if (e.key === 'Enter') document.getElementById('prenom-input').focus();
   });

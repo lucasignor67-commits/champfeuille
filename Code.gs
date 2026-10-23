@@ -6,6 +6,9 @@
 //    J  PAIEMENT   K  PAUSE (heure de mise en pause)   L  ID (rid du contrat)
 // ===============================================================
 
+// Code PIN exigé sur toutes les requêtes (sauf ping). Le changer ici ET le hash dans app.js
+var PIN_ACCES = '5397';
+
 // Personnes dont les stats sont affichées dans l'écran Suivi semaine
 var PERSONNES_SUIVIES = ['MAMIE', 'IBRAHIM', 'SIENNA'];
 
@@ -42,6 +45,14 @@ function doGet(e) {
     if (p.action === 'ping') {
       return ContentService.createTextOutput('ok')
         .setMimeType(ContentService.MimeType.TEXT);
+    }
+
+    // Code PIN : sans le bon code, aucune lecture ni écriture
+    if (String(p.pin || '') !== PIN_ACCES) {
+      var jsonR = JSON.stringify({ success: false, pinInvalide: true, error: 'Code PIN invalide' });
+      var cbR   = (p.callback || '').replace(/[^a-zA-Z0-9_]/g, '');
+      if (cbR) return ContentService.createTextOutput(cbR + '(' + jsonR + ')').setMimeType(ContentService.MimeType.JAVASCRIPT);
+      return ContentService.createTextOutput(jsonR).setMimeType(ContentService.MimeType.JSON);
     }
 
     // ── Lectures JSONP (avec cache 30 s) ──────────────────────────

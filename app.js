@@ -1,5 +1,5 @@
 // ── Configuration ───────────────────────────────────────────────
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxHw9x9NaxuQp3x1B4A7_vY2QuEvkh6wMUeeZdq8TKof16CFKInt_RUEXrG931qALyYXQ/exec';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxDJjUDM1Y_TQBqEVUvodQNYblT13tQSvMH4-BR4Atm9BxQcYvMKYeX0V8HNsz0q5doBA/exec';
 
 // ── Code d'accès ─────────────────────────────────────────────────
 // SHA-256 du code PIN (ne pas stocker le code en clair). Le vrai contrôle est fait

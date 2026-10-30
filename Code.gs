@@ -7,10 +7,10 @@
 // ===============================================================
 
 // Code PIN exigé sur toutes les requêtes (sauf ping). Le changer ici ET le hash dans app.js
-var PIN_ACCES = '5397';
+var PIN_ACCES = '0867';
 
 // Personnes dont les stats sont affichées dans l'écran Suivi semaine
-var PERSONNES_SUIVIES = ['MAMIE', 'IBRAHIM', 'SIENNA'];
+var PERSONNES_SUIVIES = ['MAMIE', 'SIENNA'];
 
 // Personnes dont les compteurs jour / semaine sont affichés sous les contrats en cours
 var PERSONNES_COMPTEURS = ['MAMIE'];

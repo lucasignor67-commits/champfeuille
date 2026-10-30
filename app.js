@@ -1,10 +1,10 @@
 // ── Configuration ───────────────────────────────────────────────
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxDJjUDM1Y_TQBqEVUvodQNYblT13tQSvMH4-BR4Atm9BxQcYvMKYeX0V8HNsz0q5doBA/exec';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxHw9x9NaxuQp3x1B4A7_vY2QuEvkh6wMUeeZdq8TKof16CFKInt_RUEXrG931qALyYXQ/exec';
 
 // ── Code d'accès ─────────────────────────────────────────────────
 // SHA-256 du code PIN (ne pas stocker le code en clair). Le vrai contrôle est fait
 // par Apps Script à chaque requête : changer aussi PIN_ACCES dans Code.gs
-const ACCESS_PIN_HASH = '514c9ae59f601e841cb9fa4bf8562c0696ece53bdfe44af88f1967d5ec9cf6b0';
+const ACCESS_PIN_HASH = 'cace9411359940daf16d2501867482846d34ebbb80940c911548bcf3018ece9d';
 let accessPin = '';  // code validé, envoyé avec chaque requête
 let pinSaisie = '';
 let pinBusy   = false;

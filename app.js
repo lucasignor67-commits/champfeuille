@@ -52,6 +52,7 @@ function unlockSite(pin) {
   try { sessionStorage.setItem('champ_pin', pin); } catch (e) {}
   syncPinDots();
   document.getElementById('pin-gate').classList.add('hidden');
+  if (typeof chargerEmployes === 'function') chargerEmployes(); // boutons raccourcis du matricule
 }
 
 // Réaffiche le digicode (code refusé par le serveur, par ex. après un changement de code)
@@ -93,6 +94,7 @@ function startContract() {
   state = { prenom: '', nom: '', matricule: '', duree: 0, tarif: 'normal', paiement: 'Facture', rid: newRid() };
   syncTarifUI();
   syncPaiementUI();
+  if (typeof chargerEmployes === 'function') chargerEmployes();
   showScreen('screen-identite');
   setTimeout(() => document.getElementById('nom-input').focus(), 100);
 }

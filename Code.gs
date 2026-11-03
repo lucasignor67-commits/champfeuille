@@ -9,8 +9,12 @@
 // Code PIN exigé sur toutes les requêtes (sauf ping). Le changer ici ET le hash dans app.js
 var PIN_ACCES = '0867';
 
-// Personnes dont les stats sont affichées dans l'écran Suivi semaine
+// Employés dont les stats sont affichées dans l'écran Suivi semaine.
+// Liste par défaut : dès qu'on ajoute ou retire un employé depuis le site,
+// la liste est enregistrée dans les propriétés du script et remplace celle-ci.
 var PERSONNES_SUIVIES = ['MAMIE', 'SIENNA'];
+var CLE_EMPLOYES      = 'PERSONNES_SUIVIES';
+var MAX_EMPLOYES      = 12;
 
 // Personnes dont les compteurs jour / semaine sont affichés sous les contrats en cours
 var PERSONNES_COMPTEURS = ['MAMIE'];
@@ -94,6 +98,21 @@ function doGet(e) {
       var cbP   = (p.callback || '').replace(/[^a-zA-Z0-9_]/g, '');
       if (cbP) return ContentService.createTextOutput(cbP + '(' + jsonP + ')').setMimeType(ContentService.MimeType.JAVASCRIPT);
       return ContentService.createTextOutput(jsonP).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // ── Employés suivis : lecture, ajout, retrait ─────────────────
+    if (readAction === 'get_employes') {
+      return jsonpOut(p, { success: true, employes: getPersonnesSuivies() });
+    }
+    if (readAction === 'ajouter_employe' || readAction === 'retirer_employe') {
+      var resE;
+      try {
+        resE = modifierEmployes(p.nom, readAction === 'ajouter_employe');
+      } catch (errE) {
+        Logger.log('employés erreur : ' + errE.message);
+        resE = { success: false, error: errE.message };
+      }
+      return jsonpOut(p, resE);
     }
 
     if (readAction === 'get_mamie_stats') {
@@ -475,8 +494,9 @@ function getSuivi(semainePrec) {
   }
   var lignes = lireLignesSuivi(sheets[semainePrec ? 1 : 0], tz);
 
-  var suivis       = PERSONNES_SUIVIES.map(function(m) { return nouvelAgregat(m); });
-  var suiviesUpper = PERSONNES_SUIVIES.map(function(m) { return m.toUpperCase(); });
+  var personnes    = getPersonnesSuivies();
+  var suivis       = personnes.map(function(m) { return nouvelAgregat(m); });
+  var suiviesUpper = personnes.map(function(m) { return m.toUpperCase(); });
 
   // Personnes hors liste : un total + le détail par matricule
   var tiersTotal  = nouvelAgregat('Personnes tiers');
@@ -542,6 +562,53 @@ function getSuivi(semainePrec) {
     jours:     jours,
     precedent: precedent
   };
+}
+
+// ---------------------------------------------------------------
+//  EMPLOYÉS SUIVIS (ajout / retrait depuis l'écran Suivi semaine)
+// ---------------------------------------------------------------
+function getPersonnesSuivies() {
+  var raw = PropertiesService.getScriptProperties().getProperty(CLE_EMPLOYES);
+  if (raw) {
+    try {
+      var liste = JSON.parse(raw);
+      if (Array.isArray(liste)) return liste;
+    } catch (e) {}
+  }
+  return PERSONNES_SUIVIES.slice();
+}
+
+// Même forme que le matricule saisi sur le site (majuscules), espaces multiples réduits
+function normaliserEmploye(nom) {
+  return String(nom || '').trim().replace(/\s+/g, ' ').toUpperCase();
+}
+
+function modifierEmployes(nomBrut, ajouter) {
+  var nom = normaliserEmploye(nomBrut);
+  if (!nom) return { success: false, error: 'Nom manquant' };
+  if (!/^[A-Z0-9ÀÂÄÇÉÈÊËÎÏÔÖÙÛÜŸ' .-]{1,20}$/.test(nom)) {
+    return { success: false, error: 'Nom invalide (20 caractères max, lettres et chiffres)' };
+  }
+
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var liste = getPersonnesSuivies();
+    var idx   = liste.indexOf(nom);
+    if (ajouter) {
+      if (idx !== -1) return { success: false, error: nom + ' est déjà suivi' };
+      if (liste.length >= MAX_EMPLOYES) return { success: false, error: MAX_EMPLOYES + ' employés maximum' };
+      liste.push(nom);
+    } else {
+      if (idx === -1) return { success: false, error: nom + ' n\'est pas dans la liste' };
+      liste.splice(idx, 1);
+    }
+    PropertiesService.getScriptProperties().setProperty(CLE_EMPLOYES, JSON.stringify(liste));
+    CacheService.getScriptCache().removeAll(['get_suivi', 'get_suivi_prec']);
+    return { success: true, employes: liste };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 // ---------------------------------------------------------------
@@ -617,6 +684,14 @@ function installerDeclencheurSemaine() {
 }
 
 // ---------------------------------------------------------------
+// Réponse JSONP si un callback est fourni (lecture par le site), JSON sinon
+function jsonpOut(p, obj) {
+  var json = JSON.stringify(obj);
+  var cb   = (p.callback || '').replace(/[^a-zA-Z0-9_]/g, '');
+  if (cb) return ContentService.createTextOutput(cb + '(' + json + ')').setMimeType(ContentService.MimeType.JAVASCRIPT);
+  return ContentService.createTextOutput(json).setMimeType(ContentService.MimeType.JSON);
+}
+
 function jsonOk(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);

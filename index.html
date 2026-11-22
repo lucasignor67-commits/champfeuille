@@ -259,7 +259,7 @@
         <button id="tab-termines" onclick="switchTab('termines')"
           class="flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition-all duration-150 text-neutral-500 hover:text-neutral-300">
           <i data-lucide="clock" class="w-3 h-3"></i>
-          10 derniers
+          20 derniers
         </button>
       </div>
 
@@ -336,51 +336,17 @@
           <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i>
           Retour
         </button>
-        <div class="flex items-center gap-4">
-          <button onclick="toggleEmployesPanel()"
-            class="flex items-center gap-1.5 text-neutral-600 hover:text-amber-400 text-xs font-medium transition-colors">
-            <i data-lucide="users" class="w-3 h-3"></i>
-            Employés
-          </button>
-          <button onclick="fetchSuivi()"
-            class="flex items-center gap-1.5 text-neutral-600 hover:text-neutral-300 text-xs font-medium transition-colors">
-            <i data-lucide="refresh-cw" class="w-3 h-3"></i>
-            Actualiser
-          </button>
-        </div>
+        <button onclick="fetchSuivi()"
+          class="flex items-center gap-1.5 text-neutral-600 hover:text-neutral-300 text-xs font-medium transition-colors">
+          <i data-lucide="refresh-cw" class="w-3 h-3"></i>
+          Actualiser
+        </button>
       </div>
 
       <!-- Titre + résumé -->
       <div>
         <h2 class="text-base font-semibold tracking-tight">Suivi semaine</h2>
         <p id="suivi-subtitle" class="text-xs text-neutral-500 mt-0.5">—</p>
-      </div>
-
-      <!-- Gestion des employés suivis (ouvert par le bouton « Employés ») -->
-      <div id="employes-panel" class="hidden rounded-2xl border border-amber-500/20 bg-neutral-900 overflow-hidden animate-fadeUp">
-        <div class="px-4 py-2.5 border-b border-neutral-800/60 flex items-center justify-between gap-2">
-          <span class="flex items-center gap-2">
-            <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
-            <span class="text-xs font-semibold text-neutral-300">Employés suivis</span>
-          </span>
-          <button onclick="toggleEmployesPanel()" aria-label="Fermer"
-            class="text-neutral-600 hover:text-neutral-300 text-sm leading-none px-1 transition-colors">✕</button>
-        </div>
-        <div id="employes-list" class="divide-y divide-neutral-800/60"></div>
-        <div class="px-4 py-3 border-t border-neutral-800/60 flex flex-col gap-2">
-          <div class="flex gap-2">
-            <input id="employe-input" type="text" placeholder="Nom de l'employé" maxlength="20"
-              autocomplete="off" autocapitalize="characters"
-              onkeydown="if(event.key==='Enter') ajouterEmploye()"
-              class="flex-1 min-w-0 rounded-lg bg-[#0f0f0f] border border-neutral-800 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-sm text-neutral-100 placeholder:text-neutral-700 px-3 py-2 outline-none transition-all uppercase placeholder:normal-case" />
-            <button onclick="ajouterEmploye()"
-              class="shrink-0 rounded-lg bg-amber-500 hover:bg-amber-400 text-black text-xs font-semibold px-3.5 transition-all active:scale-[.97]">
-              Ajouter
-            </button>
-          </div>
-          <p id="employes-error" class="hidden text-xs text-red-400"></p>
-          <p class="text-[10px] text-neutral-600">Un employé retiré n'a plus sa carte : ses contrats passent dans « Personnes tiers ».</p>
-        </div>
       </div>
 
       <!-- Choix de la semaine -->
@@ -566,8 +532,14 @@
           autocomplete="off" autocapitalize="characters"
           class="w-full rounded-lg bg-[#0f0f0f] border border-neutral-800 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 text-2xl font-bold text-center tracking-widest text-neutral-100 placeholder:text-neutral-700 placeholder:font-normal placeholder:tracking-normal placeholder:text-lg px-3 py-4 outline-none transition-all" />
         <p class="text-center text-[11px] text-neutral-600">06 &nbsp;·&nbsp; 23 &nbsp;·&nbsp; R1</p>
-        <!-- Un bouton par employé suivi (rendu par renderRaccourcis) -->
-        <div id="matricule-raccourcis" class="flex flex-col gap-1.5"></div>
+        <button onclick="document.getElementById('matricule-input').value='MAMIE'; submitMatricule();" type="button"
+          class="w-full rounded-lg border border-neutral-800 hover:border-neutral-700 bg-[#0f0f0f] hover:bg-neutral-800/50 text-neutral-400 hover:text-neutral-200 text-xs font-semibold py-2 transition-all duration-150 active:scale-[.97]">
+          MAMIE
+        </button>
+        <button onclick="document.getElementById('matricule-input').value='SIENNA'; submitMatricule();" type="button"
+          class="w-full rounded-lg border border-neutral-800 hover:border-neutral-700 bg-[#0f0f0f] hover:bg-neutral-800/50 text-neutral-400 hover:text-neutral-200 text-xs font-semibold py-2 transition-all duration-150 active:scale-[.97]">
+          SIENNA
+        </button>
       </div>
 
       <div id="error-matricule" class="hidden items-center gap-2 rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2.5 text-xs text-red-400">
@@ -866,94 +838,6 @@
       tiersOpen = !tiersOpen;
       renderSuivi(suiviCache, false);
     }
-
-    // ── Employés suivis ──────────────────────────────────────────
-    // Liste par défaut, remplacée par celle d'Apps Script dès qu'elle est chargée
-    let employes = ['MAMIE', 'SIENNA'];
-
-    function setEmployes(liste) {
-      employes = liste;
-      renderRaccourcis();
-      renderEmployes();
-    }
-
-    // Boutons raccourcis de l'écran matricule
-    function renderRaccourcis() {
-      document.getElementById('matricule-raccourcis').innerHTML = employes.map(m =>
-        `<button type="button" data-m="${esc(m)}"
-           onclick="document.getElementById('matricule-input').value=this.dataset.m; submitMatricule();"
-           class="w-full rounded-lg border border-neutral-800 hover:border-neutral-700 bg-[#0f0f0f] hover:bg-neutral-800/50 text-neutral-400 hover:text-neutral-200 text-xs font-semibold py-2 transition-all duration-150 active:scale-[.97]">
-           ${esc(m)}
-         </button>`).join('');
-    }
-
-    function renderEmployes() {
-      const list = document.getElementById('employes-list');
-      list.innerHTML = employes.length
-        ? employes.map(m =>
-          `<div class="row-hover px-4 py-2 flex items-center justify-between gap-3">
-            <span class="text-xs font-semibold text-neutral-300 truncate">${esc(m)}</span>
-            <button type="button" data-m="${esc(m)}" onclick="retirerEmploye(this.dataset.m)"
-              class="shrink-0 rounded-lg border border-neutral-800 hover:border-red-500/40 hover:bg-red-500/5 text-neutral-500 hover:text-red-400 text-[10px] font-semibold px-2.5 py-1 transition-all active:scale-[.96]">
-              Retirer
-            </button>
-          </div>`).join('')
-        : '<p class="px-4 py-3 text-xs text-neutral-600">Aucun employé suivi</p>';
-    }
-
-    async function chargerEmployes() {
-      try {
-        const data = await jsonpCached(APPS_SCRIPT_URL + '?action=get_employes', 60000);
-        if (data.success && Array.isArray(data.employes)) setEmployes(data.employes);
-      } catch (e) { console.error('[CHAMP employés]', e); }
-    }
-
-    function toggleEmployesPanel() {
-      const panel = document.getElementById('employes-panel');
-      panel.classList.toggle('hidden');
-      document.getElementById('employes-error').classList.add('hidden');
-      if (!panel.classList.contains('hidden')) {
-        renderEmployes();
-        chargerEmployes();
-        setTimeout(() => document.getElementById('employe-input').focus(), 100);
-      }
-    }
-
-    async function modifierEmploye(nom, ajouter) {
-      const errEl = document.getElementById('employes-error');
-      errEl.classList.add('hidden');
-      showSpinner(true, ajouter ? 'Ajout…' : 'Retrait…');
-      try {
-        const data = await jsonp(APPS_SCRIPT_URL + '?action=' + (ajouter ? 'ajouter_employe' : 'retirer_employe') + '&nom=' + encodeURIComponent(nom));
-        if (data.success) {
-          if (ajouter) document.getElementById('employe-input').value = '';
-          invalidateFrontendCache();
-          setEmployes(data.employes);
-          fetchSuivi();
-        } else {
-          errEl.textContent = data.error || 'Action impossible';
-          errEl.classList.remove('hidden');
-        }
-      } catch (e) {
-        errEl.textContent = 'Erreur de connexion';
-        errEl.classList.remove('hidden');
-        console.error('[CHAMP employés]', e);
-      }
-      showSpinner(false);
-    }
-
-    function ajouterEmploye() {
-      const nom = document.getElementById('employe-input').value.trim().replace(/\s+/g, ' ').toUpperCase();
-      if (!nom) return;
-      modifierEmploye(nom, true);
-    }
-
-    function retirerEmploye(nom) {
-      if (!confirm(`Retirer ${nom} du suivi semaine ?`)) return;
-      modifierEmploye(nom, false);
-    }
-
-    document.addEventListener('DOMContentLoaded', renderRaccourcis);
 
     function loadSuiviProtected() {
       if (suiviUnlocked) { loadSuivi(); return; }
